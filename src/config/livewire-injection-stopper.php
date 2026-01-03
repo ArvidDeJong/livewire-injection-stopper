@@ -11,18 +11,39 @@ return [
     |
     */
     'blocked_user_agents' => [
+        // HTTP clients / scripts
         'python-requests',
         'python/requests',
-        'curl',
+        'python requests',
+        'python-urllib',
+        'aiohttp',
+        'httpx',
+        'curl/',
         'wget',
         'scrapy',
-        'bot',
-        'spider',
-        'crawler',
-        'scraper',
         'postman',
         'insomnia',
         'httpie',
+        'go-http-client',
+        'java/',
+        'okhttp',
+        'axios',
+        'node-fetch',
+        'libwww-perl',
+        
+        // Malicious/unwanted bots (NOT search engines)
+        'ahrefsbot',
+        'semrushbot',
+        'dotbot',
+        'mj12bot',
+        'blexbot',
+        'dataforseo',
+        'bytespider',
+        'petalbot',
+        'gptbot',
+        'claudebot',
+        'ccbot',
+        'anthropic',
     ],
 
     /*
@@ -81,4 +102,15 @@ return [
     |
     */
     'log_blocked_requests' => true,
+
+    /*
+    |--------------------------------------------------------------------------
+    | Check Payload Injection
+    |--------------------------------------------------------------------------
+    |
+    | Whether to check Livewire update payloads for suspicious data.
+    | This detects attempts to inject arrays into scalar properties.
+    |
+    */
+    'check_payload_injection' => true,
 ];

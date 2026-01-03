@@ -37,6 +37,10 @@ class BlockInjectionAttempts
             return $this->blockRequest($request, 'Blocked User-Agent: ' . $userAgent);
         }
 
+        if ($this->isLivewireUpdateRoute($route) && $this->hasSuspiciousPayload($request)) {
+            return $this->blockRequest($request, 'Suspicious Livewire payload detected');
+        }
+
         return $next($request);
     }
 
@@ -93,6 +97,76 @@ class BlockInjectionAttempts
 
         foreach ($blockedAgents as $pattern) {
             if (str_contains($userAgentLower, strtolower($pattern))) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Check if this is a Livewire update route.
+     *
+     * @param  string  $route
+     * @return bool
+     */
+    protected function isLivewireUpdateRoute(string $route): bool
+    {
+        return str_contains($route, 'livewire/update');
+    }
+
+    /**
+     * Check if the request contains suspicious Livewire payload.
+     * Detects attempts to inject arrays into scalar properties.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @return bool
+     */
+    protected function hasSuspiciousPayload(Request $request): bool
+    {
+        if (!config('livewire-injection-stopper.check_payload_injection', true)) {
+            return false;
+        }
+
+        $content = $request->getContent();
+        if (empty($content)) {
+            return false;
+        }
+
+        $data = json_decode($content, true);
+        if (!is_array($data)) {
+            return false;
+        }
+
+        // Check for updates in the Livewire payload
+        $components = $data['components'] ?? [];
+        foreach ($components as $component) {
+            $updates = $component['updates'] ?? [];
+            foreach ($updates as $key => $value) {
+                // Flag if an array is being sent to a property that looks like a boolean/scalar
+                // Common boolean property patterns
+                if (is_array($value) && $this->looksLikeScalarProperty($key)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Check if a property name suggests it should be a scalar value.
+     *
+     * @param  string  $propertyName
+     * @return bool
+     */
+    protected function looksLikeScalarProperty(string $propertyName): bool
+    {
+        $scalarPrefixes = ['is_', 'has_', 'show_', 'can_', 'should_', 'enable', 'disable', 'active', 'visible', 'hidden'];
+        $propertyLower = strtolower($propertyName);
+
+        foreach ($scalarPrefixes as $prefix) {
+            if (str_starts_with($propertyLower, $prefix)) {
                 return true;
             }
         }
