@@ -11,7 +11,7 @@ return [
     |
     */
     'blocked_user_agents' => [
-        // HTTP clients / scripts
+        // HTTP clients / scripts (excluding monitoring tools)
         'python-requests',
         'python/requests',
         'python requests',
@@ -30,7 +30,7 @@ return [
         'axios',
         'node-fetch',
         'libwww-perl',
-        
+
         // Malicious/unwanted bots (NOT search engines)
         'ahrefsbot',
         'semrushbot',
@@ -44,6 +44,22 @@ return [
         'claudebot',
         'ccbot',
         'anthropic',
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Allowed User Agents (Whitelist)
+    |--------------------------------------------------------------------------
+    |
+    | User agents that should always be allowed, even if they match blocked patterns.
+    | Useful for monitoring tools like Sentry Uptime.
+    |
+    */
+    'allowed_user_agents' => [
+        'sentryuptimebot',
+        'uptimerobot',
+        'pingdom',
+        'statuscake',
     ],
 
     /*
@@ -113,4 +129,32 @@ return [
     |
     */
     'check_payload_injection' => true,
+
+    /*
+    |--------------------------------------------------------------------------
+    | Block All Array Injections
+    |--------------------------------------------------------------------------
+    |
+    | When enabled, blocks ALL array values sent to top-level Livewire properties.
+    | This is aggressive but catches type confusion attacks where attackers
+    | try to inject arrays into string/bool/int properties.
+    |
+    */
+    'block_all_array_injections' => true,
+
+    /*
+    |--------------------------------------------------------------------------
+    | Known Scalar Properties
+    |--------------------------------------------------------------------------
+    |
+    | Property names that should always be scalar values (string, int, bool).
+    | Arrays sent to these properties will be blocked.
+    |
+    */
+    'scalar_properties' => [
+        'style', 'class', 'id', 'name', 'title', 'label', 'value', 'text', 'content',
+        'description', 'placeholder', 'type', 'status', 'state', 'mode', 'color',
+        'size', 'width', 'height', 'url', 'href', 'src', 'alt', 'icon', 'image',
+        'email', 'phone', 'address', 'message', 'subject', 'body', 'slug', 'path',
+    ],
 ];

@@ -14,10 +14,6 @@ class BlockInjectionAttempts
 {
     /**
      * Handle an incoming request.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @param  \Closure  $next
-     * @return \Symfony\Component\HttpFoundation\Response
      */
     public function handle(Request $request, Closure $next): Response
     {
@@ -30,11 +26,11 @@ class BlockInjectionAttempts
         }
 
         if ($this->isBlockedIp($ip)) {
-            return $this->blockRequest($request, 'Blocked IP: ' . $ip);
+            return $this->blockRequest($request, 'Blocked IP: '.$ip);
         }
 
         if ($this->isBlockedUserAgent($userAgent)) {
-            return $this->blockRequest($request, 'Blocked User-Agent: ' . $userAgent);
+            return $this->blockRequest($request, 'Blocked User-Agent: '.$userAgent);
         }
 
         if ($this->isLivewireUpdateRoute($route) && $this->hasSuspiciousPayload($request)) {
@@ -46,9 +42,6 @@ class BlockInjectionAttempts
 
     /**
      * Check if the route is whitelisted.
-     *
-     * @param  string  $route
-     * @return bool
      */
     protected function isWhitelisted(string $route): bool
     {
@@ -65,13 +58,10 @@ class BlockInjectionAttempts
 
     /**
      * Check if the IP address is blocked.
-     *
-     * @param  string|null  $ip
-     * @return bool
      */
     protected function isBlockedIp(?string $ip): bool
     {
-        if (!$ip) {
+        if (! $ip) {
             return false;
         }
 
@@ -82,13 +72,10 @@ class BlockInjectionAttempts
 
     /**
      * Check if the User-Agent is blocked.
-     *
-     * @param  string|null  $userAgent
-     * @return bool
      */
     protected function isBlockedUserAgent(?string $userAgent): bool
     {
-        if (!$userAgent) {
+        if (! $userAgent) {
             return false;
         }
 
@@ -106,9 +93,6 @@ class BlockInjectionAttempts
 
     /**
      * Check if this is a Livewire update route.
-     *
-     * @param  string  $route
-     * @return bool
      */
     protected function isLivewireUpdateRoute(string $route): bool
     {
@@ -118,13 +102,10 @@ class BlockInjectionAttempts
     /**
      * Check if the request contains suspicious Livewire payload.
      * Detects attempts to inject arrays into scalar properties.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @return bool
      */
     protected function hasSuspiciousPayload(Request $request): bool
     {
-        if (!config('livewire-injection-stopper.check_payload_injection', true)) {
+        if (! config('livewire-injection-stopper.check_payload_injection', true)) {
             return false;
         }
 
@@ -134,7 +115,7 @@ class BlockInjectionAttempts
         }
 
         $data = json_decode($content, true);
-        if (!is_array($data)) {
+        if (! is_array($data)) {
             return false;
         }
 
@@ -143,8 +124,8 @@ class BlockInjectionAttempts
         foreach ($components as $component) {
             $updates = $component['updates'] ?? [];
             foreach ($updates as $key => $value) {
-                // Flag if an array is being sent to a property that looks like a boolean/scalar
-                // Common boolean property patterns
+                // Block ALL array injections to simple property names (no dots = not nested)
+                // This catches type confusion attacks like injecting arrays into string/bool properties
                 if (is_array($value) && $this->looksLikeScalarProperty($key)) {
                     return true;
                 }
@@ -156,12 +137,11 @@ class BlockInjectionAttempts
 
     /**
      * Check if a property name suggests it should be a scalar value.
-     *
-     * @param  string  $propertyName
-     * @return bool
+     * Now also blocks arrays sent to simple (non-nested) properties as a safety measure.
      */
     protected function looksLikeScalarProperty(string $propertyName): bool
     {
+        // Known scalar property patterns (prefixes)
         $scalarPrefixes = ['is_', 'has_', 'show_', 'can_', 'should_', 'enable', 'disable', 'active', 'visible', 'hidden'];
         $propertyLower = strtolower($propertyName);
 
@@ -171,20 +151,36 @@ class BlockInjectionAttempts
             }
         }
 
+        // Known scalar property names (exact match)
+        $scalarProperties = config('livewire-injection-stopper.scalar_properties', [
+            'style', 'class', 'id', 'name', 'title', 'label', 'value', 'text', 'content',
+            'description', 'placeholder', 'type', 'status', 'state', 'mode', 'color',
+            'size', 'width', 'height', 'url', 'href', 'src', 'alt', 'icon', 'image',
+            'email', 'phone', 'address', 'message', 'subject', 'body', 'slug', 'path',
+        ]);
+
+        if (in_array($propertyLower, $scalarProperties)) {
+            return true;
+        }
+
+        // Block arrays to simple property names (no dots = top-level property)
+        // This is aggressive but catches most injection attempts
+        if (config('livewire-injection-stopper.block_all_array_injections', true)) {
+            if (! str_contains($propertyName, '.')) {
+                return true;
+            }
+        }
+
         return false;
     }
 
     /**
      * Block the request and return a response.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @param  string  $reason
-     * @return \Symfony\Component\HttpFoundation\Response
      */
     protected function blockRequest(Request $request, string $reason): Response
     {
         if (config('livewire-injection-stopper.log_blocked_requests', true)) {
-            Log::warning('[LivewireInjectionStopper] ' . $reason, [
+            Log::warning('[LivewireInjectionStopper] '.$reason, [
                 'ip' => $request->ip(),
                 'user_agent' => $request->userAgent(),
                 'url' => $request->fullUrl(),

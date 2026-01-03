@@ -5,11 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.1.0] - 2026-01-03
+## [1.1.1] - 2026-01-03
 
 ### Added
 
-- **Livewire Payload Injection Detection** - Detects and blocks attempts to inject arrays into scalar Livewire properties (e.g., boolean properties like `is_admin`, `has_access`)
+- **Livewire Payload Injection Detection** - Detects and blocks attempts to inject arrays into scalar Livewire properties (type confusion attacks)
+- **User-Agent Whitelist** - New `allowed_user_agents` config for monitoring tools (Sentry Uptime, UptimeRobot, Pingdom, StatusCake)
+- **Block All Array Injections** - New `block_all_array_injections` config option to block arrays sent to top-level properties
+- **Known Scalar Properties List** - New `scalar_properties` config with common property names that should never receive arrays
 - New config option `check_payload_injection` to enable/disable payload checking
 
 ### Changed
@@ -18,6 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - HTTP clients: `aiohttp`, `httpx`, `go-http-client`, `java/`, `okhttp`, `axios`, `node-fetch`, `libwww-perl`, `python-urllib`
   - SEO/AI bots: `ahrefsbot`, `semrushbot`, `dotbot`, `mj12bot`, `blexbot`, `dataforseo`, `bytespider`, `petalbot`, `gptbot`, `claudebot`, `ccbot`, `anthropic`
 - Improved `curl` pattern matching (now `curl/` to be more specific)
+- Improved `looksLikeScalarProperty()` method to also check exact property names and block arrays to non-nested properties
+- Code style improvements (removed verbose PHPDoc blocks, consistent spacing)
 
 ---
 
