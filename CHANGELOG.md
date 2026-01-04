@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-01-04
+
+### Added
+
+- **Sentry Error Silencing** - Automatically silences `CannotUpdateLockedPropertyException` errors from being reported to Sentry and other error tracking services
+- New `SilentExceptionHandler` class to handle locked property exceptions without reporting them
+- New config option `silence_locked_property_exceptions` to enable/disable Sentry error silencing (enabled by default)
+- Exception handling registration in ServiceProvider to catch and return 403 responses for locked property manipulation attempts
+
+### Changed
+
+- Updated README.md with new Sentry error silencing feature documentation
+- ServiceProvider now registers exception handling for locked property exceptions
+
+---
+
 ## [1.1.1] - 2026-01-03
 
 ### Added

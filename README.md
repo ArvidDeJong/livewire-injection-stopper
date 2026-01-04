@@ -7,7 +7,7 @@
 
 ## What does this package do?
 
-This package protects your Laravel application in two ways:
+This package protects your Laravel application in three ways:
 
 ### 1. 🛡️ Blocks Spam Bots
 
@@ -16,6 +16,10 @@ Automatically blocks automated spam bots (like Python scripts, curl, wget) from 
 ### 2. 🔍 Finds Security Holes in Livewire
 
 Scans your Livewire components and tells you which properties attackers could manipulate. For example, if you have `public $isAdmin = false`, an attacker could change it to `true` in their browser!
+
+### 3. 🔇 Silences Sentry Errors from Bot Attacks
+
+When bots try to manipulate `#[Locked]` properties, Livewire throws a `CannotUpdateLockedPropertyException`. This package automatically catches these exceptions and prevents them from being reported to Sentry or other error tracking services, keeping your error logs clean.
 
 ## Installation
 
@@ -78,6 +82,22 @@ Now you can:
 - Add or remove blocked bots
 - Block specific IP addresses
 - Whitelist certain routes (like webhooks)
+- Enable/disable Sentry error silencing
+
+## Sentry Error Silencing
+
+By default, this package silences `CannotUpdateLockedPropertyException` errors that occur when bots try to manipulate `#[Locked]` Livewire properties. This keeps your Sentry error logs clean.
+
+**How it works:**
+- When a bot tries to update a locked property, Livewire throws an exception
+- This package catches the exception and returns a 403 response
+- The exception is logged locally (if logging is enabled) but NOT sent to Sentry
+
+**To disable this feature:**
+```php
+// config/livewire-injection-stopper.php
+'silence_locked_property_exceptions' => false,
+```
 
 ## Documentation
 

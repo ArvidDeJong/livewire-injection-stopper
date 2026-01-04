@@ -157,4 +157,19 @@ return [
         'size', 'width', 'height', 'url', 'href', 'src', 'alt', 'icon', 'image',
         'email', 'phone', 'address', 'message', 'subject', 'body', 'slug', 'path',
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Silence Locked Property Exceptions
+    |--------------------------------------------------------------------------
+    |
+    | When enabled, CannotUpdateLockedPropertyException will be silently handled
+    | and not reported to error tracking services like Sentry. This prevents
+    | spam from bots trying to manipulate locked Livewire properties.
+    |
+    | The exception will still be logged locally (if log_blocked_requests is true)
+    | and a 403 response will be returned to the attacker.
+    |
+    */
+    'silence_locked_property_exceptions' => true,
 ];
