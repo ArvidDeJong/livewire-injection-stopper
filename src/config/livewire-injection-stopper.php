@@ -15,6 +15,7 @@ return [
         'python-requests',
         'python/requests',
         'python requests',
+        'python requests 2.',  // Explicitly block "Python Requests 2.x"
         'python-urllib',
         'aiohttp',
         'httpx',
