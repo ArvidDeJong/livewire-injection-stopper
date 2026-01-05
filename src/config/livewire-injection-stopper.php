@@ -12,11 +12,8 @@ return [
     */
     'blocked_user_agents' => [
         // HTTP clients / scripts (excluding monitoring tools)
-        'python-requests',
-        'python/requests',
-        'python requests',
-        'python requests 2.',  // Explicitly block "Python Requests 2.x"
-        'python-urllib',
+        // Note: Patterns use str_contains(), so 'python' blocks all Python-based clients
+        'python',          // Blocks: python-requests, python/requests, python-urllib, etc.
         'aiohttp',
         'httpx',
         'curl/',
