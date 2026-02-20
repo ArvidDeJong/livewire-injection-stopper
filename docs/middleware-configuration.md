@@ -7,6 +7,7 @@ The package includes middleware that automatically blocks requests based on:
 1. **User-Agent Header** - Identifies and blocks automated tools and bots
 2. **IP Address** - Blocks specific IP addresses you configure
 3. **Route Whitelisting** - Allows certain routes to bypass checks (e.g., webhooks)
+4. **Livewire Payload Inspection** - Detects suspicious array-injection attempts in Livewire update payloads
 
 ## Default Blocked User-Agents
 
@@ -125,6 +126,24 @@ When enabled, blocked requests are logged as:
     "method": "POST"
 }
 ```
+
+## Livewire Payload Injection Protection
+
+When `check_payload_injection` is enabled, the middleware inspects Livewire update payloads and blocks suspicious array assignments to scalar/top-level properties.
+
+This supports common Livewire payload formats, including component-based and operation-based `updates` structures.
+
+Relevant settings in `config/livewire-injection-stopper.php`:
+
+```php
+'check_payload_injection' => true,
+'block_all_array_injections' => true,
+'scalar_properties' => [
+    'content', 'email', 'status', // etc.
+],
+```
+
+If a malicious payload still reaches Livewire and throws an exception, package exception silencing can still prevent Sentry noise.
 
 ## Manual Middleware Application
 

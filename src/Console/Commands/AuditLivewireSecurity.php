@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Darvis\LivewireInjectionStopper\Console\Commands;
 
 use Illuminate\Console\Command;
@@ -7,25 +9,27 @@ use Illuminate\Support\Facades\File;
 
 /**
  * Audit Livewire components for potential security vulnerabilities.
- * 
+ *
  * This command scans all Livewire components and traits for public properties
  * that should be protected with the #[Locked] attribute to prevent property
  * injection attacks.
  */
-class AuditLivewireSecurity extends Command
+final class AuditLivewireSecurity extends Command
 {
     protected $signature = 'livewire-injection-stopper:audit';
+
     protected $description = 'Audit Livewire components for potential security vulnerabilities';
 
+    /** @var array<int, array{file: string, line: int, property: string, type: string, severity: string}> */
     private array $vulnerabilities = [];
+
+    /** @var array<int, array{file: string, message: string}> */
     private array $warnings = [];
 
     /**
      * Execute the console command.
-     *
-     * @return int
      */
-    public function handle()
+    public function handle(): int
     {
         $this->info('🔍 Scanning Livewire components for security issues...');
         $this->newLine();
@@ -43,9 +47,6 @@ class AuditLivewireSecurity extends Command
 
     /**
      * Scan a directory for PHP files.
-     *
-     * @param  string  $path
-     * @return void
      */
     private function scanDirectory(string $path): void
     {
@@ -64,18 +65,15 @@ class AuditLivewireSecurity extends Command
 
     /**
      * Scan a single PHP file for vulnerable properties.
-     *
-     * @param  string  $filePath
-     * @return void
      */
     private function scanFile(string $filePath): void
     {
         $content = File::get($filePath);
         $lines = explode("\n", $content);
-        $relativePath = str_replace(base_path() . '/', '', $filePath);
+        $relativePath = str_replace(base_path().'/', '', $filePath);
 
         $hasLockedImport = str_contains($content, 'use Livewire\Attributes\Locked');
-        $isLivewireComponent = str_contains($content, 'extends Component') || 
+        $isLivewireComponent = str_contains($content, 'extends Component') ||
                                str_contains($content, 'trait ') && str_contains($content, 'Trait');
 
         if (!$isLivewireComponent) {
@@ -84,14 +82,14 @@ class AuditLivewireSecurity extends Command
 
         foreach ($lines as $lineNumber => $line) {
             $actualLineNumber = $lineNumber + 1;
-            
+
             if (preg_match('/^\s+public\s+(bool|int|string|\?[A-Z]\w+)\s+\$(\w+)\s*=/', $line, $matches)) {
                 $type = $matches[1];
                 $propertyName = $matches[2];
-                
+
                 $previousLine = $lines[$lineNumber - 1] ?? '';
                 $isLocked = str_contains($previousLine, '#[Locked]');
-                
+
                 if (!$isLocked && $this->isSuspiciousProperty($propertyName, $type)) {
                     $this->vulnerabilities[] = [
                         'file' => $relativePath,
@@ -114,10 +112,6 @@ class AuditLivewireSecurity extends Command
 
     /**
      * Determine if a property name/type is suspicious and should be locked.
-     *
-     * @param  string  $name
-     * @param  string  $type
-     * @return bool
      */
     private function isSuspiciousProperty(string $name, string $type): bool
     {
@@ -150,9 +144,6 @@ class AuditLivewireSecurity extends Command
 
     /**
      * Get the severity level for a vulnerable property.
-     *
-     * @param  string  $propertyName
-     * @return string
      */
     private function getSeverity(string $propertyName): string
     {
@@ -178,13 +169,12 @@ class AuditLivewireSecurity extends Command
 
     /**
      * Display the audit results.
-     *
-     * @return void
      */
     private function displayResults(): void
     {
         if (empty($this->vulnerabilities) && empty($this->warnings)) {
             $this->info('✅ No security issues found!');
+
             return;
         }
 
@@ -200,13 +190,13 @@ class AuditLivewireSecurity extends Command
                     foreach ($items as $vuln) {
                         $this->line("  📍 {$vuln['file']}:{$vuln['line']}");
                         $this->line("     Property: \${$vuln['property']} ({$vuln['type']})");
-                        $this->line("     💡 Add #[Locked] attribute above this property");
+                        $this->line('     💡 Add #[Locked] attribute above this property');
                         $this->newLine();
                     }
                 }
             }
 
-            $this->info('Total: ' . count($this->vulnerabilities) . ' vulnerable properties found');
+            $this->info('Total: '.count($this->vulnerabilities).' vulnerable properties found');
         }
 
         if ($this->warnings) {

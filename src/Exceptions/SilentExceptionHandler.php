@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Darvis\LivewireInjectionStopper\Exceptions;
 
 use Illuminate\Support\Facades\Log;
@@ -9,10 +11,12 @@ use Livewire\Features\SupportLockedProperties\CannotUpdateLockedPropertyExceptio
  * Handler to silently catch Livewire locked property exceptions.
  * These are typically caused by bots trying to manipulate protected properties.
  */
-class SilentExceptionHandler
+final class SilentExceptionHandler
 {
     /**
      * List of exception classes that should be silently handled.
+     *
+     * @var array<int, class-string<\Throwable>>
      */
     protected static array $silentExceptions = [
         CannotUpdateLockedPropertyException::class,
@@ -29,6 +33,37 @@ class SilentExceptionHandler
             }
         }
 
+        if ($exception instanceof \TypeError && self::isLivewireArrayAssignmentTypeError($exception)) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Check whether a TypeError was caused by a Livewire payload array assignment attack.
+     */
+    protected static function isLivewireArrayAssignmentTypeError(\TypeError $exception): bool
+    {
+        $message = $exception->getMessage();
+
+        if (!str_contains($message, 'Cannot assign array to property')) {
+            return false;
+        }
+
+        foreach ($exception->getTrace() as $frame) {
+            $class = $frame['class'] ?? null;
+            $file = $frame['file'] ?? null;
+
+            if (is_string($class) && str_starts_with($class, 'Livewire\\')) {
+                return true;
+            }
+
+            if (is_string($file) && str_contains(str_replace('\\', '/', $file), '/vendor/livewire/livewire/')) {
+                return true;
+            }
+        }
+
         return false;
     }
 
@@ -38,7 +73,7 @@ class SilentExceptionHandler
     public static function handle(\Throwable $exception): void
     {
         if (config('livewire-injection-stopper.log_blocked_requests', true)) {
-            Log::warning('[LivewireInjectionStopper] Blocked locked property manipulation attempt', [
+            Log::warning('[LivewireInjectionStopper] Blocked Livewire property manipulation attempt', [
                 'exception' => get_class($exception),
                 'message' => $exception->getMessage(),
             ]);
@@ -47,6 +82,8 @@ class SilentExceptionHandler
 
     /**
      * Get the list of exception classes that should not be reported to error tracking services.
+     *
+     * @return array<int, class-string<\Throwable>>
      */
     public static function getDontReport(): array
     {

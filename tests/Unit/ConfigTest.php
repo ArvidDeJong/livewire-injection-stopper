@@ -1,50 +1,41 @@
 <?php
 
-namespace Darvis\LivewireInjectionStopper\Tests\Unit;
+declare(strict_types=1);
 
-use Darvis\LivewireInjectionStopper\Tests\TestCase;
+it('loads default configuration', function () {
+    expect(config('livewire-injection-stopper.blocked_user_agents'))->toBeArray();
+    expect(config('livewire-injection-stopper.blocked_ips'))->toBeArray();
+    expect(config('livewire-injection-stopper.whitelist_routes'))->toBeArray();
+    expect(config('livewire-injection-stopper.response_status'))->toBeInt();
+    expect(config('livewire-injection-stopper.response_message'))->toBeString();
+    expect(config('livewire-injection-stopper.log_blocked_requests'))->toBeBool();
+});
 
-class ConfigTest extends TestCase
-{
-    /** @test */
-    public function it_loads_default_configuration()
-    {
-        $this->assertIsArray(config('livewire-injection-stopper.blocked_user_agents'));
-        $this->assertIsArray(config('livewire-injection-stopper.blocked_ips'));
-        $this->assertIsArray(config('livewire-injection-stopper.whitelist_routes'));
-        $this->assertIsInt(config('livewire-injection-stopper.response_status'));
-        $this->assertIsString(config('livewire-injection-stopper.response_message'));
-        $this->assertIsBool(config('livewire-injection-stopper.log_blocked_requests'));
-    }
+it('has correct default blocked user agents', function () {
+    $blockedAgents = config('livewire-injection-stopper.blocked_user_agents');
 
-    /** @test */
-    public function it_has_correct_default_blocked_user_agents()
-    {
-        $blockedAgents = config('livewire-injection-stopper.blocked_user_agents');
+    expect($blockedAgents)
+        ->toContain('python-requests')
+        ->toContain('curl')
+        ->toContain('wget')
+        ->toContain('bot');
+});
 
-        $this->assertContains('python-requests', $blockedAgents);
-        $this->assertContains('curl', $blockedAgents);
-        $this->assertContains('wget', $blockedAgents);
-        $this->assertContains('bot', $blockedAgents);
-    }
+it('allows custom configuration', function () {
+    config()->set('livewire-injection-stopper.blocked_user_agents', ['custom-bot']);
 
-    /** @test */
-    public function it_allows_custom_configuration()
-    {
-        config()->set('livewire-injection-stopper.blocked_user_agents', ['custom-bot']);
-        
-        $this->assertEquals(['custom-bot'], config('livewire-injection-stopper.blocked_user_agents'));
-    }
+    expect(config('livewire-injection-stopper.blocked_user_agents'))->toBe(['custom-bot']);
+});
 
-    /** @test */
-    public function it_has_default_response_status_403()
-    {
-        $this->assertEquals(403, config('livewire-injection-stopper.response_status'));
-    }
+it('has default response status 403', function () {
+    expect(config('livewire-injection-stopper.response_status'))->toBe(403);
+});
 
-    /** @test */
-    public function it_has_logging_enabled_by_default()
-    {
-        $this->assertTrue(config('livewire-injection-stopper.log_blocked_requests'));
-    }
-}
+it('has logging configurable', function () {
+    // Test that log_blocked_requests can be set to true or false
+    config()->set('livewire-injection-stopper.log_blocked_requests', true);
+    expect(config('livewire-injection-stopper.log_blocked_requests'))->toBeTrue();
+
+    config()->set('livewire-injection-stopper.log_blocked_requests', false);
+    expect(config('livewire-injection-stopper.log_blocked_requests'))->toBeFalse();
+});

@@ -19,7 +19,7 @@ Scans your Livewire components and tells you which properties attackers could ma
 
 ### 3. 🔇 Silences Sentry Errors from Bot Attacks
 
-When bots try to manipulate `#[Locked]` properties, Livewire throws a `CannotUpdateLockedPropertyException`. This package automatically catches these exceptions and prevents them from being reported to Sentry or other error tracking services, keeping your error logs clean.
+When bots manipulate Livewire payloads, they can trigger `CannotUpdateLockedPropertyException` or Livewire property-assignment `TypeError` exceptions. This package silently handles those bot-driven exceptions and prevents them from being reported to Sentry or other error tracking services, keeping your error logs clean.
 
 ## Installation
 
@@ -86,12 +86,20 @@ Now you can:
 
 ## Sentry Error Silencing
 
-By default, this package silences `CannotUpdateLockedPropertyException` errors that occur when bots try to manipulate `#[Locked]` Livewire properties. This keeps your Sentry error logs clean.
+By default, this package silences bot-driven Livewire update exceptions, including:
+- `CannotUpdateLockedPropertyException`
+- Livewire property assignment `TypeError` exceptions (for example: `Cannot assign array to property ...`)
+
+This keeps your Sentry error logs clean.
 
 **How it works:**
-- When a bot tries to update a locked property, Livewire throws an exception
-- This package catches the exception and returns a 403 response
+- Middleware blocks suspicious Livewire update payloads before component assignment when possible
+- If Livewire still throws a protected-property or array-assignment exception, this package catches it and returns a 403 response
 - The exception is logged locally (if logging is enabled) but NOT sent to Sentry
+
+### Important: Custom Exception Handlers
+
+If your app overrides `report()` in `app/Exceptions/Handler.php` and directly calls Sentry (`captureException`), make sure you skip reporting when `SilentExceptionHandler::shouldSilence($exception)` returns `true`. Otherwise, your custom handler can bypass package silencing.
 
 **To disable this feature:**
 ```php

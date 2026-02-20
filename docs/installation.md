@@ -41,6 +41,28 @@ php artisan livewire-injection-stopper:audit
 
 The middleware is automatically applied to all `web` routes and will start blocking spam bots immediately.
 
+## Custom Exception Handler Note
+
+If your app overrides `report()` in `app/Exceptions/Handler.php` and manually calls Sentry, make sure you skip reporting for silenced bot exceptions.
+
+Example:
+
+```php
+use Darvis\LivewireInjectionStopper\Exceptions\SilentExceptionHandler;
+
+public function report(Throwable $exception)
+{
+	if (config('livewire-injection-stopper.silence_locked_property_exceptions', true)
+		&& SilentExceptionHandler::shouldSilence($exception)) {
+		SilentExceptionHandler::handle($exception);
+
+		return;
+	}
+
+	parent::report($exception);
+}
+```
+
 ## Next Steps
 
 - [Configure the middleware](middleware-configuration.md)

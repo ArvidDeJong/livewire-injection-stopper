@@ -27,6 +27,14 @@ Scans your Livewire components for property injection vulnerabilities:
 - Provides actionable fix recommendations
 - Integrates with CI/CD pipelines
 
+### 🔇 Exception Silencing for Bot Noise
+
+Silences bot-driven Livewire exceptions from error trackers:
+- `CannotUpdateLockedPropertyException`
+- Livewire property assignment `TypeError` exceptions caused by malicious payloads
+
+Returns a configurable block response while optionally logging locally.
+
 ## Getting Started
 
 ### 1. Install
@@ -73,6 +81,10 @@ php artisan livewire-injection-stopper:audit
 ### Automatic Protection
 
 The middleware is automatically applied to all `web` routes upon installation. No additional configuration required for basic protection.
+
+### Custom Handler Compatibility
+
+If your app has a custom `app/Exceptions/Handler.php` with manual Sentry reporting in `report()`, add a guard to skip reporting when the package marks an exception as silenced.
 
 ### Smart Detection
 

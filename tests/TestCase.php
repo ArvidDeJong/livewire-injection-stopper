@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Darvis\LivewireInjectionStopper\Tests;
 
 use Darvis\LivewireInjectionStopper\LivewireInjectionStopperServiceProvider;

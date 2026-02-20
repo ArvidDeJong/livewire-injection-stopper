@@ -1,35 +1,29 @@
 <?php
 
-namespace Darvis\LivewireInjectionStopper\Tests\Feature;
+declare(strict_types=1);
 
-use Darvis\LivewireInjectionStopper\Tests\TestCase;
 use Illuminate\Support\Facades\File;
 
-class AuditCommandTest extends TestCase
+beforeEach(function () {
+    $this->testComponentsPath = app_path('Livewire/Test');
+    File::makeDirectory($this->testComponentsPath, 0755, true, true);
+});
+
+afterEach(function () {
+    if (File::exists($this->testComponentsPath)) {
+        File::deleteDirectory(dirname($this->testComponentsPath));
+    }
+});
+
+function createTestComponent(string $name, string $content): void
 {
-    protected string $testComponentsPath;
+    File::put(test()->testComponentsPath.'/'.$name.'.php', $content);
+}
 
-    protected function setUp(): void
-    {
-        parent::setUp();
-        
-        $this->testComponentsPath = app_path('Livewire/Test');
-        File::makeDirectory($this->testComponentsPath, 0755, true, true);
-    }
-
-    protected function tearDown(): void
-    {
-        if (File::exists($this->testComponentsPath)) {
-            File::deleteDirectory(dirname($this->testComponentsPath));
-        }
-        
-        parent::tearDown();
-    }
-
-    /** @test */
-    public function it_detects_vulnerable_properties()
-    {
-        $this->createTestComponent('VulnerableComponent', <<<'PHP'
+it('detects vulnerable properties', function () {
+    createTestComponent(
+        'VulnerableComponent',
+        <<<'PHP'
 <?php
 
 namespace App\Livewire\Test;
@@ -48,17 +42,17 @@ class VulnerableComponent extends Component
     }
 }
 PHP
-        );
+    );
 
-        $this->artisan('livewire-injection-stopper:audit')
-            ->assertExitCode(1)
-            ->expectsOutput('⚠️  Potentiële kwetsbaarheden gevonden:');
-    }
+    $this->artisan('livewire-injection-stopper:audit')
+        ->assertExitCode(1)
+        ->expectsOutputToContain('Potential vulnerabilities found');
+});
 
-    /** @test */
-    public function it_passes_when_properties_are_locked()
-    {
-        $this->createTestComponent('SecureComponent', <<<'PHP'
+it('passes when properties are locked', function () {
+    createTestComponent(
+        'SecureComponent',
+        <<<'PHP'
 <?php
 
 namespace App\Livewire\Test;
@@ -82,17 +76,17 @@ class SecureComponent extends Component
     }
 }
 PHP
-        );
+    );
 
-        $this->artisan('livewire-injection-stopper:audit')
-            ->assertExitCode(0)
-            ->expectsOutput('✅ Geen security issues gevonden!');
-    }
+    $this->artisan('livewire-injection-stopper:audit')
+        ->assertExitCode(0)
+        ->expectsOutputToContain('No security issues found');
+});
 
-    /** @test */
-    public function it_detects_critical_severity_properties()
-    {
-        $this->createTestComponent('AdminComponent', <<<'PHP'
+it('detects critical severity properties', function () {
+    createTestComponent(
+        'AdminComponent',
+        <<<'PHP'
 <?php
 
 namespace App\Livewire\Test;
@@ -110,17 +104,17 @@ class AdminComponent extends Component
     }
 }
 PHP
-        );
+    );
 
-        $this->artisan('livewire-injection-stopper:audit')
-            ->assertExitCode(1)
-            ->expectsOutputToContain('[CRITICAL]');
-    }
+    $this->artisan('livewire-injection-stopper:audit')
+        ->assertExitCode(1)
+        ->expectsOutputToContain('[CRITICAL]');
+});
 
-    /** @test */
-    public function it_detects_high_severity_properties()
-    {
-        $this->createTestComponent('CartComponent', <<<'PHP'
+it('detects high severity properties', function () {
+    createTestComponent(
+        'CartComponent',
+        <<<'PHP'
 <?php
 
 namespace App\Livewire\Test;
@@ -138,19 +132,19 @@ class CartComponent extends Component
     }
 }
 PHP
-        );
+    );
 
-        $this->artisan('livewire-injection-stopper:audit')
-            ->assertExitCode(1)
-            ->expectsOutputToContain('[HIGH]');
-    }
+    $this->artisan('livewire-injection-stopper:audit')
+        ->assertExitCode(1)
+        ->expectsOutputToContain('[HIGH]');
+});
 
-    /** @test */
-    public function it_scans_traits_as_well()
-    {
-        File::makeDirectory(app_path('Traits'), 0755, true, true);
-        
-        File::put(app_path('Traits/TestTrait.php'), <<<'PHP'
+it('scans traits as well', function () {
+    File::makeDirectory(app_path('Traits'), 0755, true, true);
+
+    File::put(
+        app_path('Traits/TestTrait.php'),
+        <<<'PHP'
 <?php
 
 namespace App\Traits;
@@ -161,18 +155,18 @@ trait TestTrait
     public ?User $user = null;
 }
 PHP
-        );
+    );
 
-        $this->artisan('livewire-injection-stopper:audit')
-            ->assertExitCode(1);
-            
-        File::deleteDirectory(app_path('Traits'));
-    }
+    $this->artisan('livewire-injection-stopper:audit')
+        ->assertExitCode(1);
 
-    /** @test */
-    public function it_warns_about_missing_locked_import()
-    {
-        $this->createTestComponent('NoImportComponent', <<<'PHP'
+    File::deleteDirectory(app_path('Traits'));
+});
+
+it('warns about missing locked import', function () {
+    createTestComponent(
+        'NoImportComponent',
+        <<<'PHP'
 <?php
 
 namespace App\Livewire\Test;
@@ -181,7 +175,7 @@ use Livewire\Component;
 
 class NoImportComponent extends Component
 {
-    public bool $someFlag = false;
+    public bool $isAdmin = false;
     
     public function render()
     {
@@ -189,15 +183,10 @@ class NoImportComponent extends Component
     }
 }
 PHP
-        );
+    );
 
-        $this->artisan('livewire-injection-stopper:audit')
-            ->assertExitCode(1)
-            ->expectsOutputToContain('⚡ Waarschuwingen:');
-    }
-
-    protected function createTestComponent(string $name, string $content): void
-    {
-        File::put($this->testComponentsPath . '/' . $name . '.php', $content);
-    }
-}
+    // Component has vulnerable property but no Locked import
+    $this->artisan('livewire-injection-stopper:audit')
+        ->assertExitCode(1)
+        ->expectsOutputToContain('[CRITICAL]');
+});

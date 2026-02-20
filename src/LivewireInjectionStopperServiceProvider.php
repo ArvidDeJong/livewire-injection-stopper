@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Darvis\LivewireInjectionStopper;
 
 use Darvis\LivewireInjectionStopper\Console\Commands\AuditLivewireSecurity;
@@ -8,9 +10,8 @@ use Darvis\LivewireInjectionStopper\Middleware\BlockInjectionAttempts;
 use Illuminate\Contracts\Debug\ExceptionHandler;
 use Illuminate\Routing\Router;
 use Illuminate\Support\ServiceProvider;
-use Livewire\Features\SupportLockedProperties\CannotUpdateLockedPropertyException;
 
-class LivewireInjectionStopperServiceProvider extends ServiceProvider
+final class LivewireInjectionStopperServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
@@ -18,25 +19,58 @@ class LivewireInjectionStopperServiceProvider extends ServiceProvider
             __DIR__.'/config/livewire-injection-stopper.php',
             'livewire-injection-stopper'
         );
+
+        $this->app->singleton('livewire-injection-stopper', function ($app) {
+            return new LivewireInjectionStopperManager;
+        });
+
+        $this->app->alias('livewire-injection-stopper', LivewireInjectionStopperManager::class);
     }
 
     public function boot(): void
     {
-        if ($this->app->runningInConsole()) {
-            $this->publishes([
-                __DIR__.'/config/livewire-injection-stopper.php' => config_path('livewire-injection-stopper.php'),
-            ], 'livewire-injection-stopper-config');
+        $this->registerPublishing();
+        $this->registerCommands();
+        $this->registerMiddleware();
+        $this->registerExceptionHandling();
+    }
 
-            $this->commands([
-                AuditLivewireSecurity::class,
-            ]);
+    /**
+     * Register the package's publishable resources.
+     */
+    protected function registerPublishing(): void
+    {
+        if (!$this->app->runningInConsole()) {
+            return;
         }
 
+        $this->publishes([
+            __DIR__.'/config/livewire-injection-stopper.php' => config_path('livewire-injection-stopper.php'),
+        ], 'livewire-injection-stopper-config');
+    }
+
+    /**
+     * Register the package's artisan commands.
+     */
+    protected function registerCommands(): void
+    {
+        if (!$this->app->runningInConsole()) {
+            return;
+        }
+
+        $this->commands([
+            AuditLivewireSecurity::class,
+        ]);
+    }
+
+    /**
+     * Register the middleware.
+     */
+    protected function registerMiddleware(): void
+    {
         $router = $this->app->make(Router::class);
         $router->aliasMiddleware('livewire-injection-stopper', BlockInjectionAttempts::class);
         $router->pushMiddlewareToGroup('web', BlockInjectionAttempts::class);
-
-        $this->registerExceptionHandling();
     }
 
     /**
@@ -46,14 +80,35 @@ class LivewireInjectionStopperServiceProvider extends ServiceProvider
      */
     protected function registerExceptionHandling(): void
     {
-        if (! config('livewire-injection-stopper.silence_locked_property_exceptions', true)) {
+        if (!config('livewire-injection-stopper.silence_locked_property_exceptions', true)) {
             return;
         }
 
         $this->app->resolving(ExceptionHandler::class, function ($handler) {
-            // Register renderable callback to return 403 response
+            if (method_exists($handler, 'dontReport')) {
+                $handler->dontReport(SilentExceptionHandler::getDontReport());
+            }
+
+            if (method_exists($handler, 'reportable')) {
+                $reportable = $handler->reportable(function (\Throwable $e) {
+                    if (!SilentExceptionHandler::shouldSilence($e)) {
+                        return null;
+                    }
+
+                    return false;
+                });
+
+                if (is_object($reportable) && method_exists($reportable, 'stop')) {
+                    $reportable->stop();
+                }
+            }
+
             if (method_exists($handler, 'renderable')) {
-                $handler->renderable(function (CannotUpdateLockedPropertyException $e, $request) {
+                $handler->renderable(function (\Throwable $e, $request) {
+                    if (!SilentExceptionHandler::shouldSilence($e)) {
+                        return null;
+                    }
+
                     SilentExceptionHandler::handle($e);
 
                     $statusCode = config('livewire-injection-stopper.response_status', 403);
