@@ -1,41 +1,36 @@
 <?php
 
 declare(strict_types=1);
+use Darvis\LivewireInjectionStopper\LivewireInjectionStopperServiceProvider;
+use Illuminate\Support\ServiceProvider;
 
-it('loads default configuration', function () {
-    expect(config('livewire-injection-stopper.blocked_user_agents'))->toBeArray();
-    expect(config('livewire-injection-stopper.blocked_ips'))->toBeArray();
-    expect(config('livewire-injection-stopper.whitelist_routes'))->toBeArray();
-    expect(config('livewire-injection-stopper.response_status'))->toBeInt();
-    expect(config('livewire-injection-stopper.response_message'))->toBeString();
-    expect(config('livewire-injection-stopper.log_blocked_requests'))->toBeBool();
-});
+it('ships the defaults a host app gets without publishing the config', function () {
+    expect(config('livewire-injection-stopper.blocked_user_agents'))
+        ->toBeArray()
+        ->toContain('python', 'curl/', 'wget', 'gptbot', 'claudebot')
+        ->not->toContain('bot', 'spider', 'crawler');
 
-it('has correct default blocked user agents', function () {
-    $blockedAgents = config('livewire-injection-stopper.blocked_user_agents');
+    expect(config('livewire-injection-stopper.allowed_user_agents'))
+        ->toContain('uptimerobot', 'pingdom', 'statuscake', 'sentryuptimebot');
 
-    expect($blockedAgents)
-        ->toContain('python-requests')
-        ->toContain('curl')
-        ->toContain('wget')
-        ->toContain('bot');
-});
-
-it('allows custom configuration', function () {
-    config()->set('livewire-injection-stopper.blocked_user_agents', ['custom-bot']);
-
-    expect(config('livewire-injection-stopper.blocked_user_agents'))->toBe(['custom-bot']);
-});
-
-it('has default response status 403', function () {
+    expect(config('livewire-injection-stopper.blocked_ips'))->toBe([]);
+    expect(config('livewire-injection-stopper.whitelist_routes'))->toContain('api/webhooks/*');
     expect(config('livewire-injection-stopper.response_status'))->toBe(403);
+    expect(config('livewire-injection-stopper.response_message'))->toBe('Access Denied');
+    expect(config('livewire-injection-stopper.log_blocked_requests'))->toBeTrue();
+    expect(config('livewire-injection-stopper.check_payload_injection'))->toBeTrue();
+    expect(config('livewire-injection-stopper.block_all_array_injections'))->toBeTrue();
+    expect(config('livewire-injection-stopper.scalar_properties'))->toContain('title', 'email', 'status');
+    expect(config('livewire-injection-stopper.silence_locked_property_exceptions'))->toBeTrue();
 });
 
-it('has logging configurable', function () {
-    // Test that log_blocked_requests can be set to true or false
-    config()->set('livewire-injection-stopper.log_blocked_requests', true);
-    expect(config('livewire-injection-stopper.log_blocked_requests'))->toBeTrue();
+it('publishes the config file under its own tag', function () {
+    $paths = ServiceProvider::pathsToPublish(
+        LivewireInjectionStopperServiceProvider::class,
+        'livewire-injection-stopper-config'
+    );
 
-    config()->set('livewire-injection-stopper.log_blocked_requests', false);
-    expect(config('livewire-injection-stopper.log_blocked_requests'))->toBeFalse();
+    expect($paths)->toHaveCount(1);
+    expect(array_key_first($paths))->toEndWith('config/livewire-injection-stopper.php');
+    expect(reset($paths))->toBe(config_path('livewire-injection-stopper.php'));
 });

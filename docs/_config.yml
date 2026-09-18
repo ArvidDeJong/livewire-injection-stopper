@@ -1,0 +1,48 @@
+title: Livewire Injection Stopper
+description: Blocks spam bots and manipulated Livewire payloads in Laravel apps, keeps the resulting exceptions out of Sentry, and audits Livewire components for unlocked properties.
+url: https://arviddejong.github.io
+baseurl: /livewire-injection-stopper
+
+remote_theme: just-the-docs/just-the-docs@v0.12.0
+plugins:
+  - jekyll-remote-theme
+  - jekyll-relative-links
+  - jekyll-seo-tag
+  - jekyll-sitemap
+
+# Facts about the package, used by the structured data and llms.txt.
+package:
+  name: darvis/livewire-injection-stopper
+  repository: https://github.com/ArvidDeJong/livewire-injection-stopper
+  packagist: https://packagist.org/packages/darvis/livewire-injection-stopper
+  license_url: https://github.com/ArvidDeJong/livewire-injection-stopper/blob/main/LICENSE
+  requires: PHP 8.2+, Laravel 11, 12 or 13, Livewire 3 or 4
+  platforms: [Laravel, Livewire]
+  keywords: [laravel, livewire, security, middleware, spam bots, user agent blocking, payload injection, locked properties, sentry noise]
+
+# Developer credit in the footer and the structured data.
+developer:
+  company: ARVID.NL
+  url: https://arvid.nl
+
+color_scheme: light
+search_enabled: true
+heading_anchors: true
+
+aux_links:
+  GitHub: https://github.com/ArvidDeJong/livewire-injection-stopper
+  Packagist: https://packagist.org/packages/darvis/livewire-injection-stopper
+aux_links_new_tab: true
+
+gh_edit_link: true
+gh_edit_link_text: Edit this page on GitHub
+gh_edit_repository: https://github.com/ArvidDeJong/livewire-injection-stopper
+gh_edit_branch: main
+gh_edit_source: docs
+gh_edit_view_mode: tree
+
+defaults:
+  - scope:
+      path: ""
+    values:
+      image: /assets/images/social-preview.png

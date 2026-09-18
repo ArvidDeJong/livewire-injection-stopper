@@ -5,266 +5,50 @@ declare(strict_types=1);
 namespace Darvis\LivewireInjectionStopper\Middleware;
 
 use Closure;
+use Darvis\LivewireInjectionStopper\Events\RequestBlocked;
+use Darvis\LivewireInjectionStopper\Exceptions\SilentExceptionHandler;
+use Darvis\LivewireInjectionStopper\LivewireInjectionStopperManager;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Log;
+use Illuminate\Http\Response as IlluminateResponse;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
- * Middleware to block spam robots and injection attempts based on User-Agent and IP address.
+ * Blocks spam bots, blocked IPs and suspicious Livewire payloads before the request runs,
+ * and answers bot-driven Livewire exceptions after it. Every check lives in the manager.
+ *
+ * Extend LivewireInjectionStopperManager rather than this middleware: the checks it used to
+ * hold as protected methods now live there, so an override here is never reached.
  */
 class BlockInjectionAttempts
 {
+    public function __construct(protected readonly LivewireInjectionStopperManager $manager) {}
+
     /**
-     * Handle an incoming request.
+     * @param  Closure(Request): Response  $next
      */
     public function handle(Request $request, Closure $next): Response
     {
-        $userAgent = $request->userAgent();
-        $ip = $request->ip();
-        $route = $request->path();
+        $reason = $this->manager->check($request);
 
-        if ($this->isWhitelisted($route)) {
-            return $next($request);
+        if ($reason !== null) {
+            return $this->manager->reject($request, $reason);
         }
 
-        if ($this->isBlockedIp($ip)) {
-            return $this->blockRequest($request, 'Blocked IP: '.$ip);
+        $response = $next($request);
+
+        // Laravel renders a controller exception inside the route pipeline, before the response
+        // reaches this middleware, and attaches it to the response. That rendered response is
+        // replaced here, whoever rendered it: Livewire 4 gives its locked-property exception
+        // an own render() that returns 419 and wins over every renderable() callback.
+        $exception = $response instanceof IlluminateResponse || $response instanceof JsonResponse
+            ? $response->exception
+            : null;
+
+        if ($exception !== null && $this->manager->silencesLockedPropertyExceptions() && SilentExceptionHandler::shouldSilence($exception)) {
+            return $this->manager->reject($request, RequestBlocked::LOCKED_PROPERTY, $exception);
         }
 
-        if ($this->isBlockedUserAgent($userAgent)) {
-            return $this->blockRequest($request, 'Blocked User-Agent: '.$userAgent);
-        }
-
-        if ($this->isLivewireUpdateRoute($route) && $this->hasSuspiciousPayload($request)) {
-            return $this->blockRequest($request, 'Suspicious Livewire payload detected');
-        }
-
-        return $next($request);
-    }
-
-    /**
-     * Check if the route is whitelisted.
-     */
-    protected function isWhitelisted(string $route): bool
-    {
-        $whitelist = config('livewire-injection-stopper.whitelist_routes', []);
-
-        foreach ($whitelist as $pattern) {
-            if (fnmatch($pattern, $route)) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /**
-     * Check if the IP address is blocked.
-     */
-    protected function isBlockedIp(?string $ip): bool
-    {
-        if (!$ip) {
-            return false;
-        }
-
-        $blockedIps = config('livewire-injection-stopper.blocked_ips', []);
-
-        return in_array($ip, $blockedIps);
-    }
-
-    /**
-     * Check if the User-Agent is blocked.
-     */
-    protected function isBlockedUserAgent(?string $userAgent): bool
-    {
-        if (!$userAgent) {
-            return false;
-        }
-
-        $blockedAgents = config('livewire-injection-stopper.blocked_user_agents', []);
-        $userAgentLower = strtolower($userAgent);
-
-        foreach ($blockedAgents as $pattern) {
-            if (str_contains($userAgentLower, strtolower($pattern))) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /**
-     * Check if this is a Livewire update route.
-     */
-    protected function isLivewireUpdateRoute(string $route): bool
-    {
-        return str_contains($route, 'livewire/update');
-    }
-
-    /**
-     * Check if the request contains suspicious Livewire payload.
-     * Detects attempts to inject arrays into scalar properties.
-     */
-    protected function hasSuspiciousPayload(Request $request): bool
-    {
-        if (!config('livewire-injection-stopper.check_payload_injection', true)) {
-            return false;
-        }
-
-        $content = $request->getContent();
-        if (empty($content)) {
-            return false;
-        }
-
-        $data = json_decode($content, true);
-        if (!is_array($data)) {
-            return false;
-        }
-
-        foreach ($this->extractPropertyUpdates($data) as $update) {
-            $property = $update['property'];
-            $value = $update['value'];
-
-            if (is_array($value) && $this->looksLikeScalarProperty($property)) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /**
-     * Extract Livewire property updates from different payload formats.
-     *
-     * @param  array<string, mixed>  $data
-     * @return array<int, array{property:string, value:mixed}>
-     */
-    protected function extractPropertyUpdates(array $data): array
-    {
-        $result = [];
-
-        $components = $data['components'] ?? null;
-        if (is_array($components)) {
-            foreach ($components as $component) {
-                if (!is_array($component)) {
-                    continue;
-                }
-
-                $updates = $component['updates'] ?? null;
-                if (is_array($updates)) {
-                    $result = array_merge($result, $this->normalizeUpdates($updates));
-                }
-            }
-        }
-
-        if (isset($data['updates']) && is_array($data['updates'])) {
-            $result = array_merge($result, $this->normalizeUpdates($data['updates']));
-        }
-
-        return $result;
-    }
-
-    /**
-     * Normalize Livewire update structures to property/value pairs.
-     *
-     * @param  array<string|int, mixed>  $updates
-     * @return array<int, array{property:string, value:mixed}>
-     */
-    protected function normalizeUpdates(array $updates): array
-    {
-        $normalized = [];
-
-        foreach ($updates as $key => $value) {
-            if (is_string($key)) {
-                $normalized[] = [
-                    'property' => $key,
-                    'value' => $value,
-                ];
-
-                continue;
-            }
-
-            if (!is_array($value)) {
-                continue;
-            }
-
-            if (isset($value['name']) && is_string($value['name']) && array_key_exists('value', $value)) {
-                $normalized[] = [
-                    'property' => $value['name'],
-                    'value' => $value['value'],
-                ];
-
-                continue;
-            }
-
-            $payload = $value['payload'] ?? null;
-            if (is_array($payload) && isset($payload['name']) && is_string($payload['name']) && array_key_exists('value', $payload)) {
-                $normalized[] = [
-                    'property' => $payload['name'],
-                    'value' => $payload['value'],
-                ];
-            }
-        }
-
-        return $normalized;
-    }
-
-    /**
-     * Check if a property name suggests it should be a scalar value.
-     * Now also blocks arrays sent to simple (non-nested) properties as a safety measure.
-     */
-    protected function looksLikeScalarProperty(string $propertyName): bool
-    {
-        // Known scalar property patterns (prefixes)
-        $scalarPrefixes = ['is_', 'has_', 'show_', 'can_', 'should_', 'enable', 'disable', 'active', 'visible', 'hidden'];
-        $propertyLower = strtolower($propertyName);
-
-        foreach ($scalarPrefixes as $prefix) {
-            if (str_starts_with($propertyLower, $prefix)) {
-                return true;
-            }
-        }
-
-        // Known scalar property names (exact match)
-        $scalarProperties = config('livewire-injection-stopper.scalar_properties', [
-            'style', 'class', 'id', 'name', 'title', 'label', 'value', 'text', 'content',
-            'description', 'placeholder', 'type', 'status', 'state', 'mode', 'color',
-            'size', 'width', 'height', 'url', 'href', 'src', 'alt', 'icon', 'image',
-            'email', 'phone', 'address', 'message', 'subject', 'body', 'slug', 'path',
-        ]);
-
-        if (in_array($propertyLower, $scalarProperties)) {
-            return true;
-        }
-
-        // Block arrays to simple property names (no dots = top-level property)
-        // This is aggressive but catches most injection attempts
-        if (config('livewire-injection-stopper.block_all_array_injections', true)) {
-            if (!str_contains($propertyName, '.')) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /**
-     * Block the request and return a response.
-     */
-    protected function blockRequest(Request $request, string $reason): Response
-    {
-        if (config('livewire-injection-stopper.log_blocked_requests', true)) {
-            Log::warning('[LivewireInjectionStopper] '.$reason, [
-                'ip' => $request->ip(),
-                'user_agent' => $request->userAgent(),
-                'url' => $request->fullUrl(),
-                'method' => $request->method(),
-            ]);
-        }
-
-        $statusCode = config('livewire-injection-stopper.response_status', 403);
-        $message = config('livewire-injection-stopper.response_message', 'Access Denied');
-
-        return response($message, $statusCode);
+        return $response;
     }
 }

@@ -1,7 +1,13 @@
 /vendor/
+/.idea/
+/.vscode/
+.DS_Store
 composer.lock
-.phpunit.result.cache
 .phpunit.cache
+.phpunit.result.cache
+.pest
 /build/
 /coverage/
-.DS_Store
+# Local overrides of the .dist files
+/phpstan.neon
+/phpunit.xml

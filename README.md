@@ -1,25 +1,28 @@
-# Livewire Injection Stopper
+# darvis/livewire-injection-stopper
 
-**Protect your Laravel + Livewire application from spam bots and security vulnerabilities.**
+[![Latest version](https://img.shields.io/packagist/v/darvis/livewire-injection-stopper.svg)](https://packagist.org/packages/darvis/livewire-injection-stopper)
+[![Tests](https://github.com/ArvidDeJong/livewire-injection-stopper/actions/workflows/tests.yml/badge.svg)](https://github.com/ArvidDeJong/livewire-injection-stopper/actions/workflows/tests.yml)
+[![Total downloads](https://img.shields.io/packagist/dt/darvis/livewire-injection-stopper.svg)](https://packagist.org/packages/darvis/livewire-injection-stopper)
+[![PHP version](https://img.shields.io/packagist/dependency-v/darvis/livewire-injection-stopper/php.svg)](https://packagist.org/packages/darvis/livewire-injection-stopper)
+[![License](https://img.shields.io/packagist/l/darvis/livewire-injection-stopper.svg)](LICENSE)
 
-[![Latest Version](https://img.shields.io/packagist/v/darvis/livewire-injection-stopper.svg)](https://packagist.org/packages/darvis/livewire-injection-stopper)
-[![License](https://img.shields.io/packagist/l/darvis/livewire-injection-stopper.svg)](https://packagist.org/packages/darvis/livewire-injection-stopper)
+Blocks **spam bots** and **manipulated Livewire payloads** in a Laravel app, keeps the resulting Livewire exceptions out of Sentry, and audits Livewire components for public properties that need `#[Locked]`.
 
-## What does this package do?
+![The three layers: bot blocking, payload inspection and the locked-property audit](https://arviddejong.github.io/livewire-injection-stopper/assets/images/social-preview.png)
 
-This package protects your Laravel application in three ways:
+## Features
 
-### 1. 🛡️ Blocks Spam Bots
+- 🤖 Rejects scripted HTTP clients (python-requests, curl, wget, Go-http-client, axios and more) and named SEO and AI crawlers by User-Agent, with a whitelist for uptime monitors. Search engines are never blocked.
+- 🚫 Blocks the IP addresses you list, and skips webhooks and other whitelisted paths
+- 🧪 Inspects Livewire update requests and rejects arrays sent to scalar properties before Livewire hydrates them
+- 🔇 Answers `CannotUpdateLockedPropertyException` and Livewire `TypeError`s from array assignment with a 403 and keeps them out of Sentry, Flare and friends
+- 🔍 `php artisan livewire-injection-stopper:audit` finds public properties an attacker could change from the browser
+- 📣 `RequestBlocked` event and a log line for every blocked request
+- 🤖 Laravel Boost guideline and skill included
 
-Automatically blocks automated spam bots (like Python scripts, curl, wget) from accessing your website. No more spam form submissions!
+## Requirements
 
-### 2. 🔍 Finds Security Holes in Livewire
-
-Scans your Livewire components and tells you which properties attackers could manipulate. For example, if you have `public $isAdmin = false`, an attacker could change it to `true` in their browser!
-
-### 3. 🔇 Silences Sentry Errors from Bot Attacks
-
-When bots manipulate Livewire payloads, they can trigger `CannotUpdateLockedPropertyException` or Livewire property-assignment `TypeError` exceptions. This package silently handles those bot-driven exceptions and prevents them from being reported to Sentry or other error tracking services, keeping your error logs clean.
+PHP 8.2+, Laravel 11, 12 or 13, and Livewire 3 or 4.
 
 ## Installation
 
@@ -27,116 +30,75 @@ When bots manipulate Livewire payloads, they can trigger `CannotUpdateLockedProp
 composer require darvis/livewire-injection-stopper
 ```
 
-That's it! The spam bot blocking is now active.
+No setup is needed. The middleware joins the `web` group, the exception handling registers itself, and the audit command is available right away.
 
-## Check Your Security
-
-Run this command to scan your Livewire components:
+## Quick start: audit your components
 
 ```bash
 php artisan livewire-injection-stopper:audit
 ```
 
-It will show you which properties need protection.
-
-## Example: Fixing a Security Issue
-
-**Before (Vulnerable):**
-```php
-class CheckoutComponent extends Component
-{
-    public $price = 100.00;  // ⚠️ Attacker can change this to $0.01!
-}
+```
+[CRITICAL]
+  📍 app/Livewire/Checkout.php:14
+     Property: $isAdmin (bool)
+     💡 Add #[Locked] attribute above this property
 ```
 
-**After (Secure):**
 ```php
 use Livewire\Attributes\Locked;
 
-class CheckoutComponent extends Component
+class Checkout extends Component
 {
-    #[Locked]  // ✅ Now protected!
-    public $price = 100.00;
+    #[Locked]
+    public bool $isAdmin = false;
 }
 ```
 
-## What Gets Blocked?
+The command exits with code 1 when it finds something, so it fits in CI.
 
-By default, these bots are blocked:
-- Python scripts (`python-requests`)
-- Command-line tools (`curl`, `wget`)
-- Web scrapers (`scrapy`)
-- Generic bots and crawlers
+## Quick start: count blocked requests
 
-Real browsers and users are never blocked.
+```php
+use Darvis\LivewireInjectionStopper\Events\RequestBlocked;
+use Illuminate\Support\Facades\Event;
 
-## Configuration (Optional)
+Event::listen(RequestBlocked::class, function (RequestBlocked $event) {
+    // $event->reason: blocked_ip, blocked_user_agent, suspicious_payload or locked_property
+    // $event->ip, $event->userAgent, $event->url, $event->exception
+});
+```
 
-Want to customize? Publish the config file:
+## Quick start: change the defaults
 
 ```bash
 php artisan vendor:publish --tag=livewire-injection-stopper-config
 ```
 
-Now you can:
-- Add or remove blocked bots
-- Block specific IP addresses
-- Whitelist certain routes (like webhooks)
-- Enable/disable Sentry error silencing
+Blocked and allowed User-Agents, blocked IPs, whitelisted routes, the response, logging, the payload rules and the exception silencing all live in `config/livewire-injection-stopper.php`.
 
-## Sentry Error Silencing
-
-By default, this package silences bot-driven Livewire update exceptions, including:
-- `CannotUpdateLockedPropertyException`
-- Livewire property assignment `TypeError` exceptions (for example: `Cannot assign array to property ...`)
-
-This keeps your Sentry error logs clean.
-
-**How it works:**
-- Middleware blocks suspicious Livewire update payloads before component assignment when possible
-- If Livewire still throws a protected-property or array-assignment exception, this package catches it and returns a 403 response
-- The exception is logged locally (if logging is enabled) but NOT sent to Sentry
-
-### Important: Custom Exception Handlers
-
-If your app overrides `report()` in `app/Exceptions/Handler.php` and directly calls Sentry (`captureException`), make sure you skip reporting when `SilentExceptionHandler::shouldSilence($exception)` returns `true`. Otherwise, your custom handler can bypass package silencing.
-
-**To disable this feature:**
-```php
-// config/livewire-injection-stopper.php
-'silence_locked_property_exceptions' => false,
-```
+One default to know about: every array sent to a **top-level** Livewire property is rejected. A multi-select bound with `wire:model="tags"` needs a nested key such as `form.tags`, or `block_all_array_injections` set to false. See [Payload injection](https://arviddejong.github.io/livewire-injection-stopper/payload-injection.html).
 
 ## Documentation
 
-For detailed documentation, see the [`/docs`](docs/README.md) folder:
+Full documentation at **[arviddejong.github.io/livewire-injection-stopper](https://arviddejong.github.io/livewire-injection-stopper/)**:
 
-- **[Installation Guide](docs/installation.md)** - Detailed setup instructions
-- **[Security Audit](docs/security-audit.md)** - How to use the audit command
-- **[Middleware Configuration](docs/middleware-configuration.md)** - Customize bot blocking
-- **[Livewire Security](docs/livewire-security.md)** - Understanding the threats
-- **[Testing](docs/testing.md)** - Running tests
+- [How it works](https://arviddejong.github.io/livewire-injection-stopper/how-it-works.html): the order of the checks, and what the package does not stop
+- [Bot blocking](https://arviddejong.github.io/livewire-injection-stopper/bot-blocking.html): User-Agents, IP addresses, whitelisted routes, the response and the event
+- [Payload injection](https://arviddejong.github.io/livewire-injection-stopper/payload-injection.html): the payload rules and the exception silencing
+- [Security audit](https://arviddejong.github.io/livewire-injection-stopper/security-audit.html): what the audit flags and its limits
+- [Configuration](https://arviddejong.github.io/livewire-injection-stopper/configuration.html)
+- [Testing](https://arviddejong.github.io/livewire-injection-stopper/testing.html)
+- [FAQ](https://arviddejong.github.io/livewire-injection-stopper/faq.html)
 
-## Quick Links
+## Security
 
-- 📖 [Full Documentation](docs/README.md)
-- 🐛 [Report Issues](https://github.com/darvis/livewire-injection-stopper/issues)
-- 💬 [Get Support](mailto:info@arvid.nl)
+Found a way around the bot blocking or the payload inspection? Please report it privately; see [SECURITY.md](SECURITY.md).
 
-## Requirements
+## Contributing
 
-- PHP 8.1+
-- Laravel 11.0 or 12.0
-- Livewire 3.0
+See [CONTRIBUTING.md](CONTRIBUTING.md). Changes are listed in the [CHANGELOG](CHANGELOG.md).
 
 ## License
 
-MIT License - feel free to use in any project!
-
-## Credits
-
-Created by [Arvid de Jong](mailto:info@arvid.nl)
-
----
-
-**Need help?** Check the [documentation](docs/README.md) or email info@arvid.nl
+MIT, see [LICENSE](LICENSE). A package by [ARVID.NL](https://arvid.nl).

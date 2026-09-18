@@ -10,21 +10,16 @@ use Darvis\LivewireInjectionStopper\Middleware\BlockInjectionAttempts;
 use Illuminate\Contracts\Debug\ExceptionHandler;
 use Illuminate\Routing\Router;
 use Illuminate\Support\ServiceProvider;
+use Throwable;
 
 final class LivewireInjectionStopperServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        $this->mergeConfigFrom(
-            __DIR__.'/config/livewire-injection-stopper.php',
-            'livewire-injection-stopper'
-        );
+        $this->mergeConfigFrom(__DIR__.'/../config/livewire-injection-stopper.php', 'livewire-injection-stopper');
 
-        $this->app->singleton('livewire-injection-stopper', function ($app) {
-            return new LivewireInjectionStopperManager;
-        });
-
-        $this->app->alias('livewire-injection-stopper', LivewireInjectionStopperManager::class);
+        $this->app->singleton(LivewireInjectionStopperManager::class);
+        $this->app->alias(LivewireInjectionStopperManager::class, 'livewire-injection-stopper');
     }
 
     public function boot(): void
@@ -35,26 +30,20 @@ final class LivewireInjectionStopperServiceProvider extends ServiceProvider
         $this->registerExceptionHandling();
     }
 
-    /**
-     * Register the package's publishable resources.
-     */
-    protected function registerPublishing(): void
+    private function registerPublishing(): void
     {
-        if (!$this->app->runningInConsole()) {
+        if (! $this->app->runningInConsole()) {
             return;
         }
 
         $this->publishes([
-            __DIR__.'/config/livewire-injection-stopper.php' => config_path('livewire-injection-stopper.php'),
+            __DIR__.'/../config/livewire-injection-stopper.php' => config_path('livewire-injection-stopper.php'),
         ], 'livewire-injection-stopper-config');
     }
 
-    /**
-     * Register the package's artisan commands.
-     */
-    protected function registerCommands(): void
+    private function registerCommands(): void
     {
-        if (!$this->app->runningInConsole()) {
+        if (! $this->app->runningInConsole()) {
             return;
         }
 
@@ -64,9 +53,9 @@ final class LivewireInjectionStopperServiceProvider extends ServiceProvider
     }
 
     /**
-     * Register the middleware.
+     * The middleware runs on every web request; the alias is for other groups or single routes.
      */
-    protected function registerMiddleware(): void
+    private function registerMiddleware(): void
     {
         $router = $this->app->make(Router::class);
         $router->aliasMiddleware('livewire-injection-stopper', BlockInjectionAttempts::class);
@@ -74,49 +63,42 @@ final class LivewireInjectionStopperServiceProvider extends ServiceProvider
     }
 
     /**
-     * Register exception handling to silence locked property exceptions.
-     * This prevents Sentry and other error tracking services from logging
-     * bot attempts to manipulate locked Livewire properties.
+     * Keep bot-driven Livewire exceptions out of error tracking. The block response itself
+     * is produced by the middleware, which replaces the rendered error response; a
+     * renderable() callback would lose against the exception's own render() on Livewire 4.
+     *
+     * dontReport() is order-independent: Handler::report() consults it before any callback,
+     * including one Sentry registered earlier. The reportable() callback covers the TypeError
+     * case, which has no exception class of its own; it runs before callbacks the app registers
+     * in withExceptions(), because resolving() fires before afterResolving(). Both hooks are
+     * looked up with method_exists() on purpose: in tests and under Octane, Collision wraps the
+     * app handler in a decorator that forwards reportable() but has no dontReport().
      */
-    protected function registerExceptionHandling(): void
+    private function registerExceptionHandling(): void
     {
-        if (!config('livewire-injection-stopper.silence_locked_property_exceptions', true)) {
+        if (! $this->app->make(LivewireInjectionStopperManager::class)->silencesLockedPropertyExceptions()) {
             return;
         }
 
-        $this->app->resolving(ExceptionHandler::class, function ($handler) {
+        $configure = function (object $handler): void {
             if (method_exists($handler, 'dontReport')) {
                 $handler->dontReport(SilentExceptionHandler::getDontReport());
             }
 
             if (method_exists($handler, 'reportable')) {
-                $reportable = $handler->reportable(function (\Throwable $e) {
-                    if (!SilentExceptionHandler::shouldSilence($e)) {
-                        return null;
-                    }
-
-                    return false;
-                });
-
-                if (is_object($reportable) && method_exists($reportable, 'stop')) {
-                    $reportable->stop();
-                }
-            }
-
-            if (method_exists($handler, 'renderable')) {
-                $handler->renderable(function (\Throwable $e, $request) {
-                    if (!SilentExceptionHandler::shouldSilence($e)) {
-                        return null;
-                    }
-
-                    SilentExceptionHandler::handle($e);
-
-                    $statusCode = config('livewire-injection-stopper.response_status', 403);
-                    $message = config('livewire-injection-stopper.response_message', 'Access Denied');
-
-                    return response($message, $statusCode);
+                // Returning false stops the reporting of this one exception. Never add ->stop():
+                // on a callback that handles every Throwable it stops the reporting of every
+                // exception in the application, which is what 1.2.3 shipped.
+                $handler->reportable(function (Throwable $e): ?bool {
+                    return SilentExceptionHandler::shouldSilence($e) ? false : null;
                 });
             }
-        });
+        };
+
+        $this->app->resolving(ExceptionHandler::class, $configure);
+
+        if ($this->app->resolved(ExceptionHandler::class)) {
+            $configure($this->app->make(ExceptionHandler::class));
+        }
     }
 }

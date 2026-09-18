@@ -5,40 +5,34 @@ declare(strict_types=1);
 namespace Darvis\LivewireInjectionStopper\Tests;
 
 use Darvis\LivewireInjectionStopper\LivewireInjectionStopperServiceProvider;
+use Illuminate\Foundation\Application;
+use Illuminate\Support\ServiceProvider;
+use Livewire\LivewireServiceProvider;
 use Orchestra\Testbench\TestCase as Orchestra;
 
 abstract class TestCase extends Orchestra
 {
-    protected function setUp(): void
-    {
-        parent::setUp();
-    }
-
-    protected function getPackageProviders($app)
+    /**
+     * @param  Application  $app
+     * @return array<int, class-string<ServiceProvider>>
+     */
+    protected function getPackageProviders($app): array
     {
         return [
+            LivewireServiceProvider::class,
             LivewireInjectionStopperServiceProvider::class,
         ];
     }
 
-    protected function getEnvironmentSetUp($app)
+    /**
+     * An app key for Livewire snapshots and a silent log channel. The package config keeps its defaults,
+     * so the tests exercise what a host app gets.
+     *
+     * @param  Application  $app
+     */
+    protected function getEnvironmentSetUp($app): void
     {
-        config()->set('livewire-injection-stopper.blocked_user_agents', [
-            'python-requests',
-            'curl',
-            'wget',
-            'bot',
-        ]);
-
-        config()->set('livewire-injection-stopper.blocked_ips', [
-            '192.168.1.100',
-        ]);
-
-        config()->set('livewire-injection-stopper.whitelist_routes', [
-            'api/webhooks/*',
-        ]);
-
-        config()->set('livewire-injection-stopper.response_status', 403);
-        config()->set('livewire-injection-stopper.log_blocked_requests', false);
+        $app['config']->set('app.key', 'base64:'.base64_encode(random_bytes(32)));
+        $app['config']->set('logging.default', 'null');
     }
 }

@@ -1,8 +1,6 @@
 {
     "name": "darvis/livewire-injection-stopper",
-    "description": "Laravel middleware package to block spam robots and injection attempts, with Livewire security audit tools",
-    "type": "library",
-    "license": "MIT",
+    "description": "Blocks spam bots and Livewire payload injection in Laravel apps, keeps the resulting Livewire exceptions out of Sentry, and audits Livewire components for unlocked public properties.",
     "keywords": [
         "laravel",
         "livewire",
@@ -10,31 +8,21 @@
         "middleware",
         "spam-protection",
         "injection-protection",
-        "security-audit"
+        "security-audit",
+        "laravel-boost"
     ],
+    "type": "library",
+    "license": "MIT",
+    "homepage": "https://arviddejong.github.io/livewire-injection-stopper/",
     "authors": [
         {
             "name": "Arvid de Jong",
-            "email": "info@arvid.nl",
-            "homepage": "https://arvid.nl"
+            "email": "info@arvid.nl"
         }
     ],
-    "homepage": "https://github.com/ArvidDeJong/livewire-injection-stopper",
     "support": {
         "issues": "https://github.com/ArvidDeJong/livewire-injection-stopper/issues",
         "source": "https://github.com/ArvidDeJong/livewire-injection-stopper"
-    },
-    "require": {
-        "php": "^8.1|^8.2|^8.3",
-        "illuminate/support": "^11.0|^12.0"
-    },
-    "require-dev": {
-        "larastan/larastan": "^3.0",
-        "laravel/pint": "^1.18",
-        "livewire/livewire": "^3.0",
-        "orchestra/testbench": "^9.0|^10.0",
-        "pestphp/pest": "^3.0",
-        "pestphp/pest-plugin-laravel": "^3.0"
     },
     "autoload": {
         "psr-4": {
@@ -46,18 +34,6 @@
             "Darvis\\LivewireInjectionStopper\\Tests\\": "tests/"
         }
     },
-    "scripts": {
-        "analyse": "vendor/bin/phpstan analyse",
-        "format": "vendor/bin/pint",
-        "test": "vendor/bin/pest",
-        "test:coverage": "vendor/bin/pest --coverage",
-        "test:parallel": "vendor/bin/pest --parallel",
-        "quality": [
-            "@format",
-            "@analyse",
-            "@test"
-        ]
-    },
     "extra": {
         "laravel": {
             "providers": [
@@ -68,12 +44,31 @@
             }
         }
     },
+    "require": {
+        "php": "^8.2",
+        "laravel/framework": "^11.0|^12.0|^13.0",
+        "livewire/livewire": "^3.0|^4.0"
+    },
+    "require-dev": {
+        "larastan/larastan": "^3.0",
+        "laravel/pint": "^1.0",
+        "orchestra/testbench": "^9.0|^10.0|^11.0",
+        "pestphp/pest": "^3.0|^4.0",
+        "pestphp/pest-plugin-laravel": "^3.0|^4.0",
+        "phpunit/phpunit": "^11.0|^12.0|^13.0"
+    },
+    "scripts": {
+        "test": "pest tests",
+        "lint": "pint --test",
+        "format": "pint",
+        "analyse": "phpstan analyse --memory-limit=1G"
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true,
     "config": {
         "sort-packages": true,
         "allow-plugins": {
             "pestphp/pest-plugin": true
         }
-    },
-    "minimum-stability": "dev",
-    "prefer-stable": true
+    }
 }

@@ -50,7 +50,7 @@ final class AuditLivewireSecurity extends Command
      */
     private function scanDirectory(string $path): void
     {
-        if (!File::exists($path)) {
+        if (! File::exists($path)) {
             return;
         }
 
@@ -76,7 +76,7 @@ final class AuditLivewireSecurity extends Command
         $isLivewireComponent = str_contains($content, 'extends Component') ||
                                str_contains($content, 'trait ') && str_contains($content, 'Trait');
 
-        if (!$isLivewireComponent) {
+        if (! $isLivewireComponent) {
             return;
         }
 
@@ -90,7 +90,7 @@ final class AuditLivewireSecurity extends Command
                 $previousLine = $lines[$lineNumber - 1] ?? '';
                 $isLocked = str_contains($previousLine, '#[Locked]');
 
-                if (!$isLocked && $this->isSuspiciousProperty($propertyName, $type)) {
+                if (! $isLocked && $this->isSuspiciousProperty($propertyName, $type)) {
                     $this->vulnerabilities[] = [
                         'file' => $relativePath,
                         'line' => $actualLineNumber,
@@ -102,7 +102,7 @@ final class AuditLivewireSecurity extends Command
             }
         }
 
-        if (!$hasLockedImport && preg_match('/^\s+public\s+/', $content)) {
+        if (! $hasLockedImport && preg_match('/^\s+public\s+/', $content)) {
             $this->warnings[] = [
                 'file' => $relativePath,
                 'message' => 'No Locked attribute import found, but has public properties',
@@ -135,7 +135,7 @@ final class AuditLivewireSecurity extends Command
             return true;
         }
 
-        if ($type === 'bool' && !in_array($nameLower, ['checked', 'selected', 'enabled', 'visible'])) {
+        if ($type === 'bool' && ! in_array($nameLower, ['checked', 'selected', 'enabled', 'visible'])) {
             return true;
         }
 

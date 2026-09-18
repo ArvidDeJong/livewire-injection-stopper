@@ -1,43 +1,37 @@
-# Livewire Security Audit Command
+---
+title: Security audit
+nav_order: 5
+description: What php artisan livewire-injection-stopper:audit scans, which Livewire properties it flags as CRITICAL, HIGH or MEDIUM, how to fix them with #[Locked], and its limits.
+---
 
-## What It Does
+# Security audit
 
-The audit command scans your Livewire components and traits for **property injection vulnerabilities**. This is a critical security feature that prevents attackers from manipulating component properties via browser console or modified requests.
-
-## Why You Need This
-
-### The Problem
-
-Livewire components expose public properties to the frontend. Attackers can modify these properties using browser developer tools or intercepted requests, potentially:
-
-- Elevating privileges (`$isAdmin = true`)
-- Bypassing limits (`$maxItems = 999999`)
-- Manipulating prices (`$price = 0.01`)
-- Accessing unauthorized data (`$userId = 1`)
-
-### The Solution
-
-Use Livewire's `#[Locked]` attribute to protect properties that users shouldn't modify.
-
-## Running the Audit
+Every public property of a Livewire component can be changed from the browser unless it is `#[Locked]`. A `public bool $isAdmin = false` is one request away from `true`. The audit command finds those properties.
 
 ```bash
 php artisan livewire-injection-stopper:audit
 ```
 
-## Understanding the Output
+## What it scans
 
-### ✅ No Issues Found
+The command reads every `.php` file under `app/Livewire` and `app/Traits`. A file counts when it contains `extends Component`, or `trait ` together with `Trait` in its contents. Files elsewhere are not scanned.
 
+In those files it looks, line by line, for public typed properties with a default value:
+
+```php
+public bool $isAdmin = false;
+public int $maxItems = 10;
+public string $role = 'user';
+public ?User $user = null;
 ```
-🔍 Scanning Livewire components for security issues...
 
-✅ No security issues found!
-```
+The property is flagged when the line directly above it does not contain `#[Locked]` and one of these holds:
 
-Your components are secure!
+- The name contains `admin`, `role`, `permission`, `auth`, `max`, `min`, `limit`, `redirect`, `available`, `allowed`, `cart`, `user`, `client`, `model`, `locale`, `config` or `setting`.
+- The type is a nullable class (`?User`, `?Cart`).
+- The type is `bool`, unless the name is `checked`, `selected`, `enabled` or `visible`.
 
-### ⚠️ Vulnerabilities Detected
+## The output
 
 ```
 🔍 Scanning Livewire components for security issues...
@@ -45,130 +39,54 @@ Your components are secure!
 ⚠️  Potential vulnerabilities found:
 
 [CRITICAL]
-  📍 app/Livewire/Admin/UserEdit.php:15
+  📍 app/Livewire/Checkout.php:14
      Property: $isAdmin (bool)
      💡 Add #[Locked] attribute above this property
 
 [HIGH]
-  📍 app/Livewire/Cart/CartComponent.php:20
-     Property: $cart (?Cart)
+  📍 app/Livewire/Cart.php:12
+     Property: $maxQuantity (int)
      💡 Add #[Locked] attribute above this property
 
-[MEDIUM]
-  📍 app/Livewire/Blog/BlogEdit.php:25
-     Property: $published (bool)
-     💡 Add #[Locked] attribute above this property
-
-Total: 3 vulnerable properties found
+Total: 2 vulnerable properties found
 ```
 
-## Severity Levels
+| Severity | Name contains |
+| --- | --- |
+| CRITICAL | `admin`, `role`, `permission`, `auth`, `isadmin` |
+| HIGH | `max`, `limit`, `user`, `client`, `cart` |
+| MEDIUM | everything else that was flagged |
 
-### CRITICAL - Immediate security risk
+A file with public properties but without `use Livewire\Attributes\Locked` gets a warning as well, even when nothing was flagged.
 
-Properties containing: `admin`, `role`, `permission`, `auth`
+The exit code is `1` when at least one property was flagged and `0` otherwise, so the command can run in CI:
 
-**Impact:** Privilege escalation, unauthorized access  
-**Action:** Fix immediately
-
-### HIGH - Significant security risk
-
-- Properties containing: `user`, `client`, `cart`, `max`, `limit`
-- Model instances without `#[Locked]`
-
-**Impact:** Data manipulation, business logic bypass  
-**Action:** Fix as soon as possible
-
-### MEDIUM - Potential security risk
-
-- Boolean flags (`$published`, `$active`, `$redirect`)
-- Configuration properties (`$locale`, `$config`)
-
-**Impact:** Unexpected behavior, minor exploits  
-**Action:** Review and fix
-
-## Fixing Vulnerabilities
-
-### Before (Vulnerable)
-
-```php
-class UserEdit extends Component
-{
-    public bool $isAdmin = false;
-    public ?User $user = null;
-    public int $maxItems = 10;
-    
-    public function save()
-    {
-        // Attacker could set $isAdmin = true!
-        if ($this->isAdmin) {
-            // Grant admin access
-        }
-    }
-}
+```yaml
+- run: php artisan livewire-injection-stopper:audit
 ```
 
-### After (Secure)
+## Fixing a finding
+
+Add `#[Locked]` on the line directly above the property. Livewire then throws `CannotUpdateLockedPropertyException` when a request tries to change it, and this package answers that with the block response.
 
 ```php
 use Livewire\Attributes\Locked;
 
-class UserEdit extends Component
+class Checkout extends Component
 {
     #[Locked]
     public bool $isAdmin = false;
-    
+
     #[Locked]
-    public ?User $user = null;
-    
-    #[Locked]
-    public int $maxItems = 10;
-    
-    // Properties users CAN modify
-    public string $name = '';
-    public string $email = '';
-    
-    public function save()
-    {
-        // Now $isAdmin cannot be manipulated!
-        if ($this->isAdmin) {
-            // Safe to use
-        }
-    }
+    public float $price = 100.00;
 }
 ```
 
-## What Properties Should Be Locked?
+If a flagged property really must be editable from the browser (`public bool $visible = true` is a common one), validate its value in the action that uses it, and leave it. The audit will keep listing it; it has no ignore list.
 
-### Always Lock
+## Limits
 
-- ✅ Model instances (`User`, `Cart`, `Invoice`)
-- ✅ Authorization flags (`$isAdmin`, `$canEdit`)
-- ✅ Limits and maximums (`$maxQuantity`, `$limit`)
-- ✅ Configuration (`$locale`, `$settings`)
-- ✅ Internal state (`$redirect`, `$available`)
-
-### Leave Unlocked
-
-- ✅ Form inputs (`$name`, `$email`, `$message`)
-- ✅ Search/filter values (`$searchTerm`, `$sortBy`)
-- ✅ Pagination parameters
-- ✅ User selections (`$selectedQuantity`, `$checked`)
-
-## Automated Scanning in CI/CD
-
-Add to your CI pipeline:
-
-```yaml
-# .github/workflows/tests.yml
-- name: Security Audit
-  run: php artisan livewire-injection-stopper:audit
-```
-
-The command returns:
-- Exit code `0` - No issues found
-- Exit code `1` - Vulnerabilities detected
-
-## Real-World Attack Example
-
-See [Livewire Security Best Practices](livewire-security.md#real-world-attack-example) for detailed attack scenarios and how to prevent them.
+- It is a text scan of single lines, not static analysis. A property declared without a type, without a default value, or across several lines is not seen.
+- `#[Locked]` must be on the line directly above the property. `#[Locked] public bool $x = false;` on one line is not recognised.
+- It flags names, not data flow. A `public float $price` is not flagged, because `price` is not in the list. Add `#[Locked]` to every property that a user must not change, whether the audit mentions it or not.
+- Components outside `app/Livewire`, such as those in a module or a package, are not scanned.

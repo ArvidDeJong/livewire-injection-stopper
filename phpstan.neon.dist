@@ -2,10 +2,6 @@ includes:
     - vendor/larastan/larastan/extension.neon
 
 parameters:
+    level: 8
     paths:
         - src
-
-    level: 6
-
-    excludePaths:
-        - src/config

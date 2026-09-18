@@ -1,45 +1,36 @@
 # Contributing
 
-Contributions are **welcome** and will be fully **credited**.
+Contributions are welcome: bug reports, fixes, documentation and ideas.
 
-## Pull Requests
+## Before you start
 
-- **[PSR-12 Coding Standard](https://www.php-fig.org/psr/psr-12/)** - Use Laravel Pint to format your code before committing.
+- **Bugs:** open an [issue](https://github.com/ArvidDeJong/livewire-injection-stopper/issues/new/choose) with the request or the component that reproduces it.
+- **Features:** open an issue first. This package stays small on purpose, so let's agree a feature fits before you build it.
+- **Security issues:** don't open an issue; see [SECURITY.md](SECURITY.md).
 
-- **Add tests** - Your patch won't be accepted if it doesn't have tests.
-
-- **Document any change in behaviour** - Make sure the `README.md` and any other relevant documentation are kept up-to-date.
-
-- **Consider our release cycle** - We try to follow [SemVer v2.0.0](https://semver.org/). Randomly breaking public APIs is not an option.
-
-- **Create feature branches** - Don't ask us to pull from your main branch.
-
-- **One pull request per feature** - If you want to do more than one thing, send multiple pull requests.
-
-- **Send coherent history** - Make sure each individual commit in your pull request is meaningful. If you had to make multiple intermediate commits while developing, please [squash them](https://www.git-scm.com/book/en/v2/Git-Tools-Rewriting-History#Changing-Multiple-Commit-Messages) before submitting.
-
-## Running Tests
+## Development
 
 ```bash
-composer test
+git clone https://github.com/ArvidDeJong/livewire-injection-stopper.git
+cd livewire-injection-stopper
+composer install
+
+composer test      # Pest
+composer lint      # Pint, check only (composer format fixes)
+composer analyse   # Larastan, level 8
 ```
 
-## Running Code Style Fixer
+CI runs the tests on PHP 8.2-8.4 with Laravel 11, 12 and 13, on the lowest and the latest dependencies.
 
-```bash
-composer format
-```
+## Pull requests
 
-## Running Static Analysis
+- Add or update tests for every change in behaviour. The tests use the package defaults; don't override the config in `TestCase`, set it in the test that needs it.
+- Keep the public API compatible within 1.x: the `livewire-injection-stopper` middleware alias and its place in the `web` group, the public methods of `LivewireInjectionStopperManager` and the `LivewireInjectionStopper` facade, `SilentExceptionHandler::shouldSilence()` and `getDontReport()`, the `RequestBlocked` event with its reason constants, the `livewire-injection-stopper:audit` command and its exit codes, the config keys, and the log messages.
+- A change a site owner notices (a new default pattern, a different response, another log message) is a minor release, not a patch.
+- Write code, comments and messages in English.
+- Update `docs/`, `CHANGELOG.md` (under `Unreleased`) and `resources/boost/` when users will notice the change.
+- The documentation in `docs/` is also the website. Don't write `{{ }}` or `{% %}` there; Jekyll would render it.
 
-```bash
-composer analyse
-```
+## Code of conduct
 
-## Running All Quality Checks
-
-```bash
-composer quality
-```
-
-**Happy coding**!
+This project follows the [Contributor Covenant](CODE_OF_CONDUCT.md).
