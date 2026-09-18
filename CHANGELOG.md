@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [1.3.0] - 2026-09-18
+
+**On 1.2.3? Update.** That version stopped the reporting of every exception in the application, so Sentry, Flare and the log received nothing at all. See Fixed.
+
+Upgrading is `composer update darvis/livewire-injection-stopper`. The config keys, their defaults and the block response are unchanged, and a published config file keeps working. Only an application that extended `BlockInjectionAttempts` to override one of its protected methods has work to do; see Changed.
+
 ### Added
 - Laravel 13 and Livewire 4 support. CI tests PHP 8.2 to 8.4 with Laravel 11, 12 and 13, on the lowest and the latest dependencies
 - `RequestBlocked` event, dispatched for every blocked request and every silenced exception, with `reason`, `ip`, `userAgent`, `url` and `exception`. The reasons are `blocked_ip`, `blocked_user_agent`, `suspicious_payload` and `locked_property`
@@ -90,7 +97,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Support for Laravel 11 and 12
 - Support for Livewire 3
 
-[Unreleased]: https://github.com/ArvidDeJong/livewire-injection-stopper/compare/v1.2.3...HEAD
+[Unreleased]: https://github.com/ArvidDeJong/livewire-injection-stopper/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/ArvidDeJong/livewire-injection-stopper/compare/v1.2.3...v1.3.0
 [1.2.3]: https://github.com/ArvidDeJong/livewire-injection-stopper/compare/v1.2.2...v1.2.3
 [1.2.2]: https://github.com/ArvidDeJong/livewire-injection-stopper/compare/v1.2.1...v1.2.2
 [1.2.1]: https://github.com/ArvidDeJong/livewire-injection-stopper/compare/v1.2.0...v1.2.1
