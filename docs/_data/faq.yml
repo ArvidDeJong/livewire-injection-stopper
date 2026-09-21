@@ -1,34 +1,31 @@
 # Questions as people ask them to an assistant. Short, factual answers.
 # Rendered on faq.md, in the FAQPage structured data and in llms.txt.
-- q: How do I block spam bots in a Laravel Livewire application?
-  a: Install `darvis/livewire-injection-stopper`. Its middleware joins the `web` group automatically and rejects scripted clients such as python-requests, curl, wget and Go-http-client by their User-Agent, plus any IP addresses you list. No setup is needed.
+- q: What is darvis/livewire-injection-stopper?
+  a: A Laravel package for applications that use Livewire. Its middleware rejects requests from listed User-Agents and IP addresses and Livewire update requests that send an array to a property that looks scalar. It also keeps two bot-driven Livewire exceptions out of error tracking and has an artisan command that lists public properties that probably need `#[Locked]`.
 
-- q: Does darvis/livewire-injection-stopper work with Livewire 4 and Laravel 13?
-  a: Yes. It supports Livewire 3 and 4, Laravel 11, 12 and 13, and PHP 8.2 or higher. The Livewire update route is recognised by its route name, so a custom Livewire endpoint is inspected too.
+- q: How do I block scripted bots in a Laravel Livewire application?
+  a: Run `composer require darvis/livewire-injection-stopper`. The middleware joins the `web` group by itself and rejects User-Agents that contain a listed pattern such as `python`, `curl/`, `wget` or `go-http-client`, plus the exact IP addresses you list. Routes outside the `web` group are only covered when you add the `livewire-injection-stopper` middleware alias to them.
+
+- q: Which PHP, Laravel and Livewire versions does it support, and what does it cost?
+  a: PHP 8.2 or higher, Laravel 11, 12 or 13, and Livewire 3 or 4. It is free and open source under the MIT license, and it needs no account, API key or external service.
+
+- q: Can a bot get around it, and is it a replacement for a firewall?
+  a: Yes, a bot can get around it, and no, it is not a firewall. A client that sends a browser User-Agent or no User-Agent passes the User-Agent check, scalar values are never inspected, and arrays under a nested key such as `form.tags` pass. Combine it with `#[Locked]` properties, validation, rate limiting and a honeypot on forms.
 
 - q: Will it block Googlebot or other search engines?
-  a: No. The default list names specific SEO and AI crawlers (AhrefsBot, SemrushBot, GPTBot, ClaudeBot and others) and never generic words like "bot" or "crawler". If you add such a word yourself, put your uptime monitor in `allowed_user_agents` first.
+  a: Not with the default settings. The default list names specific HTTP clients and SEO and AI crawlers (AhrefsBot, SemrushBot, GPTBot, ClaudeBot and others) and holds no generic word like `bot` or `crawler`. If you add such a word yourself, put the search engines and your uptime monitor in `allowed_user_agents` first.
 
-- q: Why does Sentry keep reporting CannotUpdateLockedPropertyException?
-  a: Bots replay Livewire requests with changed properties, and Livewire throws that exception for every `#[Locked]` property they touch. darvis/livewire-injection-stopper answers those requests with a 403, dispatches a `RequestBlocked` event and marks the exception as not reportable, so Sentry stays quiet.
+- q: Why does Sentry keep reporting CannotUpdateLockedPropertyException in my Livewire app?
+  a: Livewire throws that exception whenever a request tries to change a `#[Locked]` property, which replayed and manipulated requests do. The package marks it as not reportable on Laravel's exception handler, answers the request with the block response (403 by default) and dispatches a `RequestBlocked` event. A handler that overrides `report()` and calls Sentry directly needs an early return with `SilentExceptionHandler::shouldSilence($e)`.
 
-- q: What is a Livewire payload injection?
-  a: A request to Livewire's update endpoint that sends an array where the component expects a string, integer or boolean. It causes a `TypeError` during hydration or lets attackers probe property handling. The package rejects arrays sent to top-level properties before Livewire sees them.
+- q: My Livewire multi-select or checkbox group returns Access Denied after installing the package. Why?
+  a: With `block_all_array_injections` enabled (the default), every array sent to a top-level Livewire property is rejected. Bind the array under a nested key such as `form.tags`, or set that option to false so only the names in `scalar_properties` and the fixed prefixes such as `is_` and `show_` are checked.
 
-- q: My multi-select stopped working after installing the package. Why?
-  a: With `block_all_array_injections` enabled (the default), every array sent to a top-level Livewire property is rejected. Bind array properties under a nested key such as `form.tags`, or set that option to false so only known scalar names and prefixes like `is_` and `show_` are checked.
-
-- q: How do I find Livewire properties that should be #[Locked]?
-  a: Run `php artisan livewire-injection-stopper:audit`. It scans `app/Livewire` and `app/Traits` for public typed properties with a default value whose name looks sensitive (admin, role, price limits, user, cart and more) and exits with code 1 when it finds one, so it fits in CI.
-
-- q: Does it use JavaScript, cookies or an external service?
-  a: No. Everything runs in a middleware and an exception handler on your own server. There is no client-side code and no request to a third party.
-
-- q: How is it different from darvis/livewire-honeypot?
-  a: They complement each other. The honeypot protects forms against bots that fill in fields. This package blocks scripted clients and manipulated Livewire payloads at the request level, silences the resulting exceptions and audits components for unlocked properties.
+- q: "How do I find Livewire properties that should be #[Locked]?"
+  a: Run `php artisan livewire-injection-stopper:audit`. It scans `app/Livewire` and `app/Traits` for public `bool`, `int`, `string` or nullable class properties with a default value that lack `#[Locked]` on the line above and whose name or type looks sensitive (admin, role, permission, max, limit, user, cart and more). It exits with code 1 when it flags something, and it is a text scan, so a clean result is not proof.
 
 - q: How do I log or count blocked requests?
-  a: Listen for `Darvis\LivewireInjectionStopper\Events\RequestBlocked`. It carries the `reason` (`blocked_ip`, `blocked_user_agent`, `suspicious_payload` or `locked_property`), the `ip`, the `userAgent`, the `url` and, for silenced exceptions, the `exception`. A warning is also written to the log unless `log_blocked_requests` is false.
+  a: Listen for `Darvis\LivewireInjectionStopper\Events\RequestBlocked`. It carries the `reason` (`blocked_ip`, `blocked_user_agent`, `suspicious_payload` or `locked_property`), the `ip`, the `userAgent`, the `url` and, for silenced exceptions, the `exception`. A warning that starts with `[LivewireInjectionStopper]` is also written to the log unless `log_blocked_requests` is false.
 
-- q: Can a bot get around it?
-  a: Yes, by sending a browser User-Agent. The User-Agent check removes the noise from scripts that don't bother; it is not a web application firewall. Combine it with `#[Locked]` properties, rate limiting and a honeypot on forms.
+- q: How is it different from darvis/livewire-honeypot?
+  a: They do different jobs. `darvis/livewire-honeypot` adds a honeypot field and a time trap to forms. This package works on the request itself, with User-Agent and IP checks and an inspection of Livewire update payloads, and it audits components for unlocked properties. It uses no JavaScript, no cookies and no external service.

@@ -20,11 +20,11 @@ Use this skill when a request is unexpectedly blocked in an application that has
 | 3 | User-Agent contains a blocked pattern and none of the allowed patterns (case-insensitive `str_contains`) | `blocked_user_agents`, `allowed_user_agents` | `blocked_user_agent` |
 | 4 | Livewire update request (route name ending in `livewire.update`, or path `livewire/update`) sends an array to a property that looks scalar | `check_payload_injection`, `block_all_array_injections`, `scalar_properties` | `suspicious_payload` |
 
-A property looks scalar when its name starts with `is_`, `has_`, `show_`, `can_`, `should_`, `enable`, `disable`, `active`, `visible` or `hidden`, is listed in `scalar_properties`, or (with `block_all_array_injections`) has no dot in its name. Nested keys such as `form.tags` are never blocked.
+A property looks scalar when its name starts with `is_`, `has_`, `show_`, `can_`, `should_`, `enable`, `disable`, `active`, `visible` or `hidden`, is listed in `scalar_properties`, or (with `block_all_array_injections`) has no dot in its name. The prefixes and `scalar_properties` are compared with the whole name, so `form.tags` and `form.email` pass, while `activeFilters.tags` is blocked by its prefix. Entries in `scalar_properties` must be lowercase.
 
 Every rejection goes through `reject()`: a log warning (unless `log_blocked_requests` is false), the `RequestBlocked` event, then a response built from `response_status` and `response_message`.
 
-Separately, `CannotUpdateLockedPropertyException` and Livewire array-assignment `TypeError`s are marked as not reportable, and the middleware replaces their rendered error response with the same block response, reason `locked_property`. The reporting hooks are registered at boot from `silence_locked_property_exceptions`. Livewire 4 answers wrong-type values itself with a 419 before a `TypeError` occurs; that passes through unchanged.
+Separately, `CannotUpdateLockedPropertyException` and Livewire array-assignment `TypeError`s are marked as not reportable, and the middleware replaces their rendered error response with the same block response, reason `locked_property`. The reporting hooks are registered at boot from `silence_locked_property_exceptions`. Outside debug mode Livewire 4 (checked against 4.4) answers wrong-type values itself with `abort(419)` before a `TypeError` reaches Laravel; that passes through unchanged, without a log line or event.
 
 ## A legitimate client is blocked
 
@@ -54,7 +54,7 @@ A property that must stay editable from the browser is validated in the action t
 
 ## Sentry still reports the exception
 
-The package hooks `dontReport()`, `reportable()` and `renderable()` on `Illuminate\Foundation\Exceptions\Handler`. A handler that overrides `report()` and calls `captureException()` directly bypasses that:
+The package hooks `dontReport()` and `reportable()` on Laravel's exception handler; the block response comes from the middleware, not from a `renderable()` callback. A handler that overrides `report()` and calls `captureException()` directly bypasses that:
 
 ```php
 use Darvis\LivewireInjectionStopper\Exceptions\SilentExceptionHandler;
@@ -71,7 +71,7 @@ public function report(Throwable $e): void
 
 ## Testing
 
-Laravel's HTTP test client sends the User-Agent `Symfony`, which is not blocked, and `Livewire::test()` never passes through the middleware, so existing tests keep passing.
+Laravel's HTTP test client sends the User-Agent `Symfony`, which is not blocked, and `Livewire::test()` runs its requests with all middleware disabled, so existing tests keep passing. That also means a component test does not show that a top-level array update is blocked in the browser.
 
 ```php
 use Darvis\LivewireInjectionStopper\Events\RequestBlocked;

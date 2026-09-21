@@ -161,3 +161,33 @@ test('the footer credits ARVID.NL without a personal name', function () {
 
     expect(file_get_contents(docsPath('_includes/head_custom.html')))->not->toContain('"Person"');
 });
+
+test('every relative link points to an existing page and heading, and the home page links every page', function () {
+    // The way kramdown's GFM parser builds a heading id: lowercase, drop everything but word characters, hyphens and spaces.
+    $slug = fn (string $heading): string => str_replace(' ', '-', (string) preg_replace('/[^\p{L}\p{N}_\- ]/u', '', strtolower($heading)));
+
+    $anchors = [];
+    foreach (glob(docsPath('*.md')) as $page) {
+        preg_match_all('/^#{1,4} (.+)$/m', (string) file_get_contents($page), $headings);
+        $anchors[basename($page)] = array_map($slug, $headings[1]);
+    }
+
+    foreach (glob(docsPath('*.md')) as $page) {
+        preg_match_all('/\]\(([a-z0-9-]+\.md)(?:#([^)]+))?\)/', (string) file_get_contents($page), $links, PREG_SET_ORDER);
+
+        foreach ($links as $link) {
+            expect(array_key_exists($link[1], $anchors))->toBeTrue(basename($page).' links to '.$link[1]);
+
+            if (isset($link[2])) {
+                expect(in_array($link[2], $anchors[$link[1]], true))->toBeTrue(basename($page).' links to '.$link[1].'#'.$link[2]);
+            }
+        }
+    }
+
+    $home = (string) file_get_contents(docsPath('index.md'));
+    foreach (array_keys($anchors) as $page) {
+        if ($page !== 'index.md') {
+            expect(str_contains($home, '('.$page.')'))->toBeTrue('index.md does not link '.$page);
+        }
+    }
+});
