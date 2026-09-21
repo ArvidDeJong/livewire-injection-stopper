@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-09-21
+
 ### Added
 - Documentation pages [Installation](https://arviddejong.github.io/livewire-injection-stopper/installation.html) (with "Check that it works"), [Quick start](https://arviddejong.github.io/livewire-injection-stopper/quick-start.html) and [Troubleshooting](https://arviddejong.github.io/livewire-injection-stopper/troubleshooting.html) (symptom, cause, fix, with the literal log messages), and a complete feature test on the Testing page
 - A docs guard test that checks every relative link and heading anchor, and that the home page links every page
@@ -118,7 +120,8 @@ Upgrading is `composer update darvis/livewire-injection-stopper`. The config key
 - Support for Laravel 11 and 12
 - Support for Livewire 3
 
-[Unreleased]: https://github.com/ArvidDeJong/livewire-injection-stopper/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/ArvidDeJong/livewire-injection-stopper/compare/v1.3.1...HEAD
+[1.3.1]: https://github.com/ArvidDeJong/livewire-injection-stopper/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/ArvidDeJong/livewire-injection-stopper/compare/v1.2.3...v1.3.0
 [1.2.3]: https://github.com/ArvidDeJong/livewire-injection-stopper/compare/v1.2.2...v1.2.3
 [1.2.2]: https://github.com/ArvidDeJong/livewire-injection-stopper/compare/v1.2.1...v1.2.2
