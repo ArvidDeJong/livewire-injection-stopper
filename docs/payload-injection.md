@@ -1,61 +1,86 @@
 ---
-title: Payload injection
-nav_order: 4
-description: How darvis/livewire-injection-stopper rejects arrays sent to scalar Livewire properties, what that means for array properties, and how it keeps the resulting Livewire exceptions out of Sentry.
+title: "Payload injection"
+nav_order: 6
+description: "The exact rules by which an array sent to a Livewire property is rejected, how to keep array properties working, and which two Livewire exceptions are silenced."
 ---
 
 # Payload injection
 
-A Livewire update request carries, per component, an `updates` map of property names to new values. A browser sends what `wire:model` bound. A bot replays the request with whatever it likes: an array where the component expects a string, or a new value for a property the component never exposed for editing.
+A Livewire update request carries, per component, a list of property names with their new values. A browser sends what `wire:model` bound. A script can replay the request with anything: an array where the component expects a string, or a new value for a property that was never meant to be edited.
 
-## The payload rules
+The package does two separate things about that. It rejects some array values before Livewire sees them, and it silences two exceptions that Livewire or PHP throw for manipulated requests.
 
-On Livewire's update endpoint, and only there, the middleware reads the JSON body and looks at every property update. An update is rejected when its value is an **array** and the property name looks **scalar**:
+## Which updates are rejected
 
-1. The name starts with `is_`, `has_`, `show_`, `can_`, `should_`, `enable`, `disable`, `active`, `visible` or `hidden`.
-2. The name is in `scalar_properties`. The default list holds common form and display names: `title`, `name`, `email`, `status`, `content`, `url` and others.
+On Livewire's update endpoint, and only there, the middleware decodes the JSON body and looks at every property update in `components.*.updates` and in a top-level `updates` key. An update is rejected when its value is an **array** and the property name looks **scalar** (a single value: a string, number or boolean). A name looks scalar when one of these holds:
+
+1. The name starts with `is_`, `has_`, `show_`, `can_`, `should_`, `enable`, `disable`, `active`, `visible` or `hidden`. The comparison is case-insensitive, and the list is fixed in the code.
+2. The lowercased name is in `scalar_properties`. The 33 defaults are `style`, `class`, `id`, `name`, `title`, `label`, `value`, `text`, `content`, `description`, `placeholder`, `type`, `status`, `state`, `mode`, `color`, `size`, `width`, `height`, `url`, `href`, `src`, `alt`, `icon`, `image`, `email`, `phone`, `address`, `message`, `subject`, `body`, `slug` and `path`.
 3. `block_all_array_injections` is true (the default) and the name has no dot, so it is a top-level property.
 
-Rule 3 makes the check strict: every array sent to a top-level property is rejected. Nested keys such as `form.tags` or `filters.categories` are never blocked by that rule, because that is how array properties are usually bound. Values that are not arrays are never inspected.
+Rule 3 makes the default strict: **every array sent to a top-level property is rejected.**
 
-The endpoint is recognised by its route name, which ends in `livewire.update` in both Livewire 3 (`/livewire/update`) and Livewire 4 (`/livewire-<hash>/update`), or by the path `livewire/update`. A custom update URI configured in Livewire is covered too.
+What passes:
+
+- A value that is not an array. Strings, numbers, booleans and null are never inspected.
+- An array under a name with a dot, such as `form.tags` or `filters.categories`, unless that name starts with a prefix from rule 1 (`activeFilters.tags` is rejected).
+- A body that is empty or not JSON.
+- Everything, when `check_payload_injection` is false.
+
+Rules 1 and 2 compare the whole name. `email` in `scalar_properties` matches the property `email`, not `form.email`. Write the entries of `scalar_properties` in lowercase: the property name is lowercased before the comparison and the entries are not, so `firstName` in the list never matches.
+
+The endpoint is recognised by its route name, which ends in `livewire.update` in both Livewire 3 (`/livewire/update`) and Livewire 4 (`/livewire-<hash>/update`), or by a path that contains `livewire/update`. A custom update route registered with `Livewire::setUpdateRoute()` gets such a name from Livewire, so it is inspected too.
 
 ### Components with array properties
 
-If a component binds an array at the top level, for example a multi-select with `wire:model="tags"`, that update is rejected under the default settings. Two ways out:
+A component that binds an array at the top level, for example checkboxes or a multi-select with `wire:model="tags"` on `public array $tags = []`, can send that array as one update. Under the default settings that request gets the block response. Two ways out:
 
-- Bind the property under a nested key, such as a form object (`form.tags`) or an array property (`filters.tags`).
-- Set `block_all_array_injections` to false. Then only rules 1 and 2 apply, and you can trim `scalar_properties` to the names your components use.
+- Bind the property under a nested key: a Livewire form object (`form.tags`) or an array property (`filters.tags`).
+- Set `block_all_array_injections` to false. Then only rules 1 and 2 apply. Trim `scalar_properties` to the names your components use, and check that no array property starts with a prefix from rule 1.
 
 ```php
+// config/livewire-injection-stopper.php
+
 'block_all_array_injections' => false,
 'scalar_properties' => ['title', 'email', 'status'],
 ```
 
-Turning off `check_payload_injection` disables the whole inspection.
+With this config an array sent to `tags` passes, and an array sent to `title`, `email`, `status` or `is_admin` is still rejected.
 
-## Exception silencing
+## The two silenced exceptions
 
-Two exceptions are the fingerprint of a manipulated payload that got past the middleware:
+Two exceptions are typical for a manipulated payload that got past the request filter:
 
-- `Livewire\Features\SupportLockedProperties\CannotUpdateLockedPropertyException`, thrown when a request tries to change a `#[Locked]` property.
-- A `TypeError` with the message `Cannot assign array to property …`, raised inside Livewire while it assigns a payload value to a typed property.
+- `Livewire\Features\SupportLockedProperties\CannotUpdateLockedPropertyException`, thrown by Livewire when a request tries to change a `#[Locked]` property.
+- A `TypeError` whose message contains `Cannot assign array to property`, raised while Livewire assigns a payload value to a typed property.
 
 With `silence_locked_property_exceptions` enabled (the default), for those two cases:
 
-- the package marks the exception as not reportable on Laravel's exception handler, so Sentry, Flare and other trackers that hook into the reporting pipeline never see it. Every other exception is reported as usual;
-- the middleware replaces the rendered error response with the block response (`response_status`, `response_message`), writes the usual warning to the log and dispatches `RequestBlocked` with reason `locked_property` and the exception attached. Laravel renders a controller exception inside the route pipeline and hands the response back through the middleware, so this works whoever rendered it, including Livewire 4's own `render()` on the locked-property exception, which answers with an empty 419 outside debug mode.
+- The package registers the exception as not reportable on Laravel's exception handler, through `dontReport()` for the Livewire exception and a `reportable()` callback that returns `false` for both. An error tracker that receives exceptions through Laravel's reporting, for example Sentry registered in `withExceptions()`, does not get it. Every other exception is reported as usual.
+- The middleware replaces the rendered error response with the block response (`response_status`, `response_message`), writes the warning `[LivewireInjectionStopper] Blocked Livewire property manipulation attempt` and dispatches `RequestBlocked` with the reason `locked_property` and the exception attached.
 
-A `TypeError` counts only when its message matches and its stack trace passes through a `Livewire\` class or the `vendor/livewire/livewire` directory. A `TypeError` from your own code is reported as usual. Livewire 4 rejects wrong-type values itself with a 419 before a `TypeError` can occur; that response passes through unchanged.
+The second point needs the middleware on the route. Livewire's update route is in the `web` group, so that is the case by default.
+
+A `TypeError` counts only when its message matches **and** its stack trace passes through a class in the `Livewire\` namespace or a file under `vendor/livewire/livewire`. A `TypeError` from your own code is reported as usual.
+
+### What Livewire 4 already answers itself
+
+This was checked against Livewire 4.4. Outside debug mode, that version catches the wrong-type `TypeError` itself and answers with `abort(419)`. No `TypeError` reaches Laravel, so the package does nothing: the 419 response passes through unchanged, without a log line or event. In debug mode Livewire rethrows the `TypeError`; when it reaches Laravel's exception handler, the rule above applies.
+
+Livewire 4's `CannotUpdateLockedPropertyException` renders itself as an empty 419 outside debug mode. The middleware replaces that response too, so a locked-property attempt gets the block response in both modes.
 
 ### Custom exception handlers
 
-The package works through `dontReport()` and `reportable()` on Laravel's exception handler, so it covers the `withExceptions()` callback in `bootstrap/app.php` and an `app/Exceptions/Handler.php` that extends the framework handler. Its `reportable()` callback stops the reporting of the silenced exceptions only; every other exception continues to the callbacks and the log.
+The package works through `dontReport()` and `reportable()` on Laravel's exception handler. That covers the `withExceptions()` callback in `bootstrap/app.php` and an `app/Exceptions/Handler.php` that extends the framework handler.
 
-If your handler overrides `report()` and calls Sentry directly, skip the call when the package would silence the exception:
+If your handler overrides `report()` and calls the error tracker directly, skip the call when the package would silence the exception:
 
 ```php
+<?php
+// app/Exceptions/Handler.php
+
 use Darvis\LivewireInjectionStopper\Exceptions\SilentExceptionHandler;
+use Throwable;
 
 public function report(Throwable $e): void
 {
@@ -67,8 +92,8 @@ public function report(Throwable $e): void
 }
 ```
 
-`SilentExceptionHandler::getDontReport()` returns the exception classes the package adds to `dontReport`.
+`SilentExceptionHandler::shouldSilence()` returns true for the two cases above. `SilentExceptionHandler::getDontReport()` returns the exception classes the package adds to `dontReport`, which is `CannotUpdateLockedPropertyException` only.
 
-## Checking the payload yourself
+## Checking a payload yourself
 
-`LivewireInjectionStopper::hasSuspiciousPayload($request)` runs the same rules on any request, for example in a custom middleware for an endpoint that is not Livewire's.
+`LivewireInjectionStopper::hasSuspiciousPayload($request)` runs the same rules on the JSON body of any request. It does not check that the request goes to Livewire's endpoint; `LivewireInjectionStopper::isLivewireUpdateRequest($request)` does that.

@@ -1,74 +1,53 @@
 ---
-title: Home
+title: "Home"
 nav_order: 1
-description: Blocks spam bots and manipulated Livewire payloads in Laravel apps, keeps the resulting exceptions out of Sentry, and audits Livewire components for unlocked properties.
+description: "A Laravel package that rejects listed User-Agents, listed IP addresses and arrays sent to scalar Livewire properties, and audits components for #[Locked]."
 permalink: /
 ---
 
 # Livewire Injection Stopper
 
-Three layers of protection for a **Laravel** application that uses **Livewire**. A middleware that rejects scripted clients, listed IP addresses and manipulated Livewire payloads before they reach a component. An exception handler that answers bot-driven Livewire exceptions with a 403 instead of reporting them to Sentry. And an audit command that finds public properties an attacker could change from the browser.
+`darvis/livewire-injection-stopper` is a Laravel package with a middleware (code that runs on a request before your route does) that rejects requests from listed User-Agents, listed IP addresses, and Livewire update requests that send an array to a property that should hold a single value. It also keeps two bot-driven Livewire exceptions out of your error tracker, and ships an artisan command that lists public Livewire properties that probably need `#[Locked]`.
 
-![The three layers: bot blocking, payload inspection and the locked-property audit](assets/images/social-preview.png)
+![The three parts: bot blocking, payload inspection and the locked-property audit](assets/images/social-preview.png)
+
+## Who it is for
+
+A Laravel application that uses [Livewire](https://livewire.laravel.com) and sees scripted traffic: log lines from `python-requests` or `curl`, or `CannotUpdateLockedPropertyException` reports in Sentry caused by replayed Livewire requests.
+
+## What it does not do
+
+- It does not stop a bot that sends a browser User-Agent. The User-Agent is a string the client chooses.
+- It does not validate values. A request that changes `price` from `100` to `0.01` passes; only `#[Locked]` or your own validation stops that.
+- It lets arrays through that are sent under a nested key such as `form.tags`, and it does not inspect anything on a whitelisted path.
+- It does not cover routes outside the `web` middleware group, such as `routes/api.php`, unless you add the middleware there.
+- It is not a web application firewall, a rate limiter or a CAPTCHA.
+
+The full list is on [How it works](how-it-works.md#what-it-does-not-stop).
+
+## Requirements
+
+PHP 8.2+, Laravel 11, 12 or 13, and Livewire 3 or 4.
+
+## Install
 
 ```bash
 composer require darvis/livewire-injection-stopper
-```
-
-Requires PHP 8.2+, Laravel 11, 12 or 13, and Livewire 3 or 4. No setup is needed: the middleware joins the `web` group on install.
-
-## Find properties that need `#[Locked]`
-
-```bash
 php artisan livewire-injection-stopper:audit
-```
-
-```
-🔍 Scanning Livewire components for security issues...
-
-⚠️  Potential vulnerabilities found:
-
-[CRITICAL]
-  📍 app/Livewire/Checkout.php:14
-     Property: $isAdmin (bool)
-     💡 Add #[Locked] attribute above this property
-```
-
-The command exits with code 1 when it finds something, so it fits in CI.
-
-## Count what gets blocked
-
-```php
-use Darvis\LivewireInjectionStopper\Events\RequestBlocked;
-use Illuminate\Support\Facades\Event;
-
-Event::listen(RequestBlocked::class, function (RequestBlocked $event) {
-    // $event->reason: blocked_ip, blocked_user_agent, suspicious_payload or locked_property
-    // $event->ip, $event->userAgent, $event->url, $event->exception
-});
-```
-
-## Change the defaults
-
-```bash
 php artisan vendor:publish --tag=livewire-injection-stopper-config
 ```
 
-Blocked and allowed User-Agents, blocked IPs, whitelisted routes, the response, logging, the payload rules and the exception silencing all live in `config/livewire-injection-stopper.php`. See [Configuration](configuration.md).
+The first line is enough: the middleware joins the `web` group when the package boots. The second line lists properties to lock. The third is optional and writes `config/livewire-injection-stopper.php`. See [Installation](installation.md) for the steps and for how to check that it works.
 
-## What you get
+## Pages
 
-- Rejects scripted HTTP clients (python-requests, curl, wget, Go-http-client and more) and named SEO and AI crawlers, with a whitelist for uptime monitors. Search engines are not blocked.
-- Rejects arrays sent to scalar Livewire properties, the usual first step of a type confusion attack
-- Answers `CannotUpdateLockedPropertyException` and Livewire `TypeError`s from array assignment with the block response, and keeps them out of Sentry
-- `RequestBlocked` event and a log line for every blocked request
-- `livewire-injection-stopper:audit` for public properties that should be `#[Locked]`
-- A Laravel Boost guideline and skill for AI assistants in your project
-
-## Read next
-
-- [How it works](how-it-works.md): the order of the checks, and what the package does not stop
-- [Bot blocking](bot-blocking.md): User-Agents, IP addresses, whitelisted routes, the response and the event
-- [Payload injection](payload-injection.md): the Livewire payload rules and the exception silencing
-- [Security audit](security-audit.md): what the audit command flags and how to fix it
-- [FAQ](faq.md)
+- [Installation](installation.md): the steps, and two commands that prove the package is active
+- [Quick start](quick-start.md): lock a property, run the audit, and count blocked requests, as one complete example
+- [How it works](how-it-works.md): the four checks in order, what a block looks like, and what the package does not stop
+- [Bot blocking](bot-blocking.md): User-Agents, IP addresses, whitelisted paths, the response, the log line and the event
+- [Payload injection](payload-injection.md): the rules for Livewire update requests and the two silenced exceptions
+- [Security audit](security-audit.md): what the audit command scans, its literal output and its limits
+- [Configuration](configuration.md): every config key with its default
+- [Testing](testing.md): test your own app with the package installed, without external calls
+- [Troubleshooting](troubleshooting.md): a legitimate request is blocked, nothing is blocked, Sentry still reports the exception
+- [FAQ](faq.md): short answers to common questions

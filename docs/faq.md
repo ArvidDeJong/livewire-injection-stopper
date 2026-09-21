@@ -1,7 +1,7 @@
 ---
-title: FAQ
-nav_order: 8
-description: Short answers about darvis/livewire-injection-stopper, bot blocking and Livewire payload protection for Laravel apps.
+title: "FAQ"
+nav_order: 11
+description: "Short answers about darvis/livewire-injection-stopper: what it blocks, which versions it supports, what it cannot stop, and how it relates to Sentry."
 faq: true
 ---
 

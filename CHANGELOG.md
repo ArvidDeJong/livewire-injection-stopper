@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Documentation pages [Installation](https://arviddejong.github.io/livewire-injection-stopper/installation.html) (with "Check that it works"), [Quick start](https://arviddejong.github.io/livewire-injection-stopper/quick-start.html) and [Troubleshooting](https://arviddejong.github.io/livewire-injection-stopper/troubleshooting.html) (symptom, cause, fix, with the literal log messages), and a complete feature test on the Testing page
+- A docs guard test that checks every relative link and heading anchor, and that the home page links every page
+
+### Fixed
+Documentation only; the package itself is unchanged.
+- The docs, the Boost files and `CLAUDE.md` said a nested key is never blocked. A name with a dot skips the `block_all_array_injections` rule, but it is still blocked when the whole name starts with a fixed prefix (`activeFilters.tags`, `hidden.0`). And `scalar_properties` is compared with the whole name, so `email` in the list does not cover `form.email`
+- Not documented before: entries in `scalar_properties` must be lowercase. The property name is lowercased before the comparison and the entries are not, so `firstName` never matches
+- The Security audit page said a file with public properties but without `use Livewire\Attributes\Locked` gets a warning. The command never prints that warning
+- The Security audit page said `#[Locked] public bool $x = false;` on one line "is not recognised", which read as a false positive. Such a line is not seen at all. The limits now also name what else the scan skips: components that extend an own base class (the file must contain `extends Component`), properties without a default value, the types `float`, `array`, `?string`, `?int` and namespaced classes, and `#[Locked, Url]`
+- The audit output examples left out the closing `Total:` and `📖 See https://livewire.laravel.com/docs/locked …` lines. Now also documented: `✅ No security issues found!` appears as well when `app/Livewire` does not exist, so it is not proof
+- "The body is sent as plain text" is wrong: the block response has Laravel's default `Content-Type`, `text/html; charset=utf-8`
+- The Testing page and the Boost skill said `Livewire::test()` never goes through the HTTP layer. It does, with all middleware disabled; the result is the same, and a component test therefore does not show that a top-level array update is blocked in the browser. The example no longer sends a CSRF token, because Laravel does not verify tokens while running tests
+- "Livewire 4 rejects wrong-type values itself with a 419" only holds outside debug mode (checked against Livewire 4.4); in debug mode it rethrows the `TypeError`
+- The Boost skill said the package hooks `renderable()`. Since 1.3.0 it hooks `dontReport()` and `reportable()` only; the block response comes from the middleware
+- Not documented before: the middleware sits at the end of the `web` group, so a POST without a valid CSRF token gets Laravel's 419 before the package sees it; a request without a User-Agent is never blocked; `*` in `whitelist_routes` also matches slashes; a published list replaces the default list completely
+- Removed claims the code cannot back: "Search engines are never blocked" (the default list holds none, a generic word you add blocks them), "which is most of them" about bots without a browser User-Agent, and "a bot that gets Not Found has no reason to try again"
+- The FAQ named "price limits" among the audit's patterns; `price` is not one of them. The FAQ went from 11 to 10 questions
+- The front matter description of the Security audit page and one FAQ question contained ` #[Locked]` unquoted, which YAML reads as a comment, so both were cut off at that point. They are quoted now
+- Code examples that used `Cache` or `Log` without importing them
+
 ## [1.3.0] - 2026-09-18
 
 **On 1.2.3? Update.** That version stopped the reporting of every exception in the application, so Sentry, Flare and the log received nothing at all. See Fixed.
